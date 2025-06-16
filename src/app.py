@@ -1,7 +1,7 @@
 import asyncio
 import os
 from datetime import datetime
-from fastapi import FastAPI, Request, Form, Depends, HTTPException
+from fastapi import FastAPI, Request, Form, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
@@ -23,9 +23,7 @@ import yt_dlp
 import tempfile
 import uuid
 import shutil
-from fastapi.templating import Jinja2Templates
-import google.auth
-from src.agents.visuals import get_visual_script_for_scene, get_visual_script_for_video
+#from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
 # Load environment variables from .env file
@@ -47,7 +45,7 @@ app.add_middleware(
 video_cache = {}
 
 db = firestore.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT"))
-templates = Jinja2Templates(directory="src/static")
+#templates = Jinja2Templates(directory="src/static")
 
 @app.on_event("shutdown")
 def shutdown_event():
