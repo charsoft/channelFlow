@@ -18,11 +18,11 @@ variable "target_channel_id" {
 variable "gemini_model_name" {
   description = "The name of the Gemini model to use."
   type        = string
-  default     = "gemini-1.5-flash-preview-0514"
+  
 }
 
 variable "imagen_model_name" {
   description = "The name of the Imagen model to use."
   type        = string
-  default     = "imagegeneration@006"
+  
 } 

@@ -13,6 +13,11 @@ terraform {
       version = ">= 3.0.0"
     }
   }
+
+  backend "gcs" {
+    bucket  = "channelflow-test-deploy-tfstate"
+    prefix  = "terraform/state"
+  }
 }
 
 provider "google" {
@@ -118,6 +123,7 @@ resource "google_storage_bucket_iam_member" "public_access" {
 resource "google_cloud_run_v2_service" "api_service" {
   name     = "channelflow-api-service"
   location = var.region
+  ingress  = "INGRESS_TRAFFIC_ALL"
 
   template {
     annotations = {
