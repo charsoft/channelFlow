@@ -10,7 +10,7 @@
       {
         "source": "/api/**",
         "run": {
-          "serviceId": "YOUR_CLOUD_RUN_SERVICE_ID",
+          "serviceId": "channelflow-api-service",
           "region": "us-central1"
         }
       },

@@ -12,9 +12,9 @@ venv/
 
 # Terraform
 .terraform/
-terraform.tfstate
-terraform.tfstate.backup
+
 .terraform.lock.hcl
+terraform/terraform.tfvars
 
 # IDE / Editor specific
 .vscode/
@@ -24,4 +24,11 @@ terraform.tfstate.backup
 .DS_Store
 *~$
 
-terraform/terraform.tfvars
+# Firebase
+.firebase
+firebase.json.local
+firebase.log
+
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
