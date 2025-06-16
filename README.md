@@ -1,9 +1,9 @@
 # channelFlow
 Hackathon entry!
 
-running it locally:
+Running it locally:
 
-
+(details for running it locally are coming soon...)
 
 
 
@@ -11,9 +11,9 @@ running it locally:
 Running it in GCP
 How to set up:
 - Create a Google Cloud project
-- manually create the OAuth Client ID and Secret in GCP Console
+- Manually create the OAuth Client ID and Secret in GCP Console
 Configure Google OAuth Client: In your Google Cloud Console, under "APIs & Services" -> "Credentials", make sure the OAuth 2.0 Client ID you're using is configured as a "Web application" and, critically, that you've added http://localhost:8000 (for local testing) and your deployed application's URL to the "Authorized JavaScript origins". The redirect_uri is handled by the new Google Identity Services library and doesn't need to be configured for this flow.
-
+- Copy the clientID and Client Secret. Put the values in the terraform.tfvars file.
  
 - Clone this repository
 - Open the repo in your favorite code editor
