@@ -11,11 +11,6 @@ terraform {
   }
 }
 
-variable "google_api_key" {
-  description = "The Google API key for YouTube services. This will be stored in Secret Manager."
-  type        = string
-  sensitive   = true
-}
 
 variable "target_channel_id" {
   description = "The YouTube channel ID to monitor."
@@ -54,7 +49,7 @@ resource "google_service_account" "api_service_account" {
 resource "google_secret_manager_secret" "youtube_api_key_secret" {
   secret_id = "youtube-api-key"
   replication {
-    automatic = true
+    auto {}
   }
   depends_on = [google_project_service.secretmanager]
 }
@@ -74,7 +69,7 @@ resource "google_secret_manager_secret_iam_member" "youtube_api_key_access" {
 resource "google_secret_manager_secret" "target_channel_id_secret" {
   secret_id = "target-channel-id"
   replication {
-    automatic = true
+    auto {}
   }
   depends_on = [google_project_service.secretmanager]
 }
@@ -94,7 +89,7 @@ resource "google_secret_manager_secret_iam_member" "target_channel_id_access" {
 resource "google_secret_manager_secret" "gemini_api_key_secret" {
   secret_id = "gemini-api-key"
   replication {
-    automatic = true
+    auto {}
   }
   depends_on = [google_project_service.secretmanager]
 }
@@ -137,37 +132,55 @@ resource "google_cloud_run_v2_service" "api_service" {
   template {
     service_account = google_service_account.api_service_account.email
 
+    volumes {
+      name = "youtube-api-key-volume"
+      secret {
+        secret  = google_secret_manager_secret.youtube_api_key_secret.secret_id
+        items {
+          path    = "YOUTUBE_API_KEY"
+          version = "latest"
+        }
+      }
+    }
+    volumes {
+      name = "target-channel-id-volume"
+      secret {
+        secret  = google_secret_manager_secret.target_channel_id_secret.secret_id
+        items {
+          path    = "TARGET_CHANNEL_ID"
+          version = "latest"
+        }
+      }
+    }
+    volumes {
+      name = "gemini-api-key-volume"
+      secret {
+        secret  = google_secret_manager_secret.gemini_api_key_secret.secret_id
+        items {
+          path    = "GEMINI_API_KEY"
+          version = "latest"
+        }
+      }
+    }
+
     containers {
       image = "us-central1-docker.pkg.dev/${var.project_id}/channelflow-test-deploy-api-repo/channelflow:latest"
+
+      volume_mounts {
+        name       = "youtube-api-key-volume"
+        mount_path = "/etc/secrets/youtube"
+      }
+      volume_mounts {
+        name       = "target-channel-id-volume"
+        mount_path = "/etc/secrets/channel"
+      }
+      volume_mounts {
+        name       = "gemini-api-key-volume"
+        mount_path = "/etc/secrets/gemini"
+      }
+
       ports {
         container_port = 8080
-      }
-      env {
-        name = "YOUTUBE_API_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.youtube_api_key_secret.secret_id
-            version = "latest"
-          }
-        }
-      }
-      env {
-        name = "TARGET_CHANNEL_ID"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.target_channel_id_secret.secret_id
-            version = "latest"
-          }
-        }
-      }
-      env {
-        name = "GEMINI_API_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.gemini_api_key_secret.secret_id
-            version = "latest"
-          }
-        }
       }
     }
   }
