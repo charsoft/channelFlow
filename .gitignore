@@ -6,5 +6,20 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-.venv/ 
+.venv/
+venv/
+*.egg-info/
+
+# Terraform
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+.terraform.lock.hcl
+
+# IDE / Editor specific
+.vscode/
+.idea/
+
+# OS-specific
+.DS_Store
+*~$
