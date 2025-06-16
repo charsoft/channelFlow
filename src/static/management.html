@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Channel - Content Management</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="management-container">
+        <header class="management-header">
+            <div class="header-left">
+                <button class="hamburger-menu" aria-label="Open navigation menu">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+                <a href="/" class="logo-link">
+                    <img src="/static/channel logo no words.png" alt="ChannelFlow Logo" class="logo-icon">
+                    <span class="logo-text">ChannelFlow</span>
+                </a>
+            </div>
+            <nav class="nav-links">
+                <a href="/" class="button-link">Process New Video</a>
+            </nav>
+        </header>
+        
+        <div class="content-body">
+            <h1>Content Dashboard</h1>
+            <p>Review and manage all processed video content.</p>
+            <div id="videos-grid" class="videos-grid">
+                <!-- Video cards will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <div id="shorts-candidates-container">
+            <!-- YouTube Shorts candidates will be injected here -->
+        </div>
+
+    </div>
+
+    <!-- Modal Structure -->
+    <div id="video-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button id="modal-close" class="modal-close-button">&times;</button>
+            <div id="modal-body">
+                <!-- Modal content will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Site Maintenance</h2>
+        <div class="maintenance-controls">
+            <button id="cleanup-cache-btn" class="button-danger">Clean Up Video Cache</button>
+            <p class="description">
+                Immediately deletes all temporarily cached video files from the server. This is useful to free up disk space without restarting the application.
+            </p>
+        </div>
+    </div>
+
+    <script src="/static/js/management.js"></script>
+</body>
+</html> 
