@@ -1,4 +1,8 @@
-project_id        = "channelflow-test-deploy"
-youtube_api_key   = "AIzaSyBsyxv--a3Q4KpuNJ7Iw5jxRLroglYrXAM"
-target_channel_id = "UC_RCHcO9BOgC03RU8oxZmzw"
-gemini_api_key    = "AIzaSyBsBMSFAvAITB4i67Xa_jn0MEytTXMlEks"
+project_id        = "your project id"
+
+target_channel_id = "your you-tube channel id"
+
+gemini_model_name = "pick a model for gemini"
+imagen_model_name = "pick a model for imagen" 
+google_client_id = "your oauth 2.0 client id here"
+google_client_secret = "your oauth 2.0 client secret here."
