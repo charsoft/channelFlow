@@ -1,10 +1,28 @@
 variable "project_id" {
-  description = "The ID of the Google Cloud project."
+  description = "The Google Cloud project ID."
   type        = string
 }
 
 variable "region" {
-  description = "The region for Google Cloud resources."
+  description = "The Google Cloud region for resources."
   type        = string
   default     = "us-central1"
+}
+
+variable "target_channel_id" {
+  description = "The YouTube channel ID to monitor. This will be stored in Secret Manager."
+  type        = string
+  sensitive   = true
+}
+
+variable "gemini_model_name" {
+  description = "The name of the Gemini model to use."
+  type        = string
+  default     = "gemini-1.5-flash-preview-0514"
+}
+
+variable "imagen_model_name" {
+  description = "The name of the Imagen model to use."
+  type        = string
+  default     = "imagegeneration@006"
 } 

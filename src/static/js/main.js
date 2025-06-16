@@ -125,7 +125,7 @@ ingestForm.addEventListener('submit', async (e) => {
 
     try {
         // First, check if the video exists without forcing
-        const response = await fetch('/ingest-url', {
+        const response = await fetch('/api/ingest-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: url, force: false }),
@@ -210,7 +210,7 @@ ingestForm.addEventListener('submit', async (e) => {
 async function sendIngestRequest(url, force) {
     statusDiv.textContent = 'Restarting workflow from scratch...';
     try {
-        const response = await fetch('/ingest-url', {
+        const response = await fetch('/api/ingest-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url, force }),
@@ -353,6 +353,7 @@ function updateUI(data) {
 }
 
 async function handleStageClick(videoId, agentId) {
+    console.log(`Re-triggering ${agentId} for video ${videoId}`);
     const agentIdToStage = {
         "ingestion_agent": "transcription",
         "transcription_agent": "transcription",
@@ -369,7 +370,7 @@ async function handleStageClick(videoId, agentId) {
     
     statusDiv.textContent = `Re-triggering stage: ${backendStage}...`;
     try {
-        const response = await fetch('/re-trigger', {
+        const response = await fetch('/api/re-trigger', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ video_id: videoId, stage: backendStage }),

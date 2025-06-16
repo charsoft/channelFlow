@@ -11,36 +11,70 @@ terraform {
   }
 }
 
-
-variable "target_channel_id" {
-  description = "The YouTube channel ID to monitor."
-  type        = string
-}
-
-variable "youtube_api_key" {
-  description = "The YouTube API key. This will be stored in Secret Manager."
-  type        = string
-  sensitive   = true
-}
-
-variable "gemini_api_key" {
-  description = "The Gemini API key. This will be stored in Secret Manager."
-  type        = string
-  sensitive   = true
-}
-
 provider "google" {
-  project = var.project_id
-  region  = var.region
+  project               = var.project_id
+  region                = var.region
+  user_project_override = true
+  billing_project       = var.project_id
+}
+
+resource "google_project_service" "firestore" {
+  service = "firestore.googleapis.com"
 }
 
 resource "google_project_service" "secretmanager" {
   service = "secretmanager.googleapis.com"
 }
 
+resource "google_project_service" "apikeys" {
+  service = "apikeys.googleapis.com"
+}
+
+resource "google_project_service" "youtube" {
+  service = "youtube.googleapis.com"
+}
+
+resource "google_project_service" "generativelanguage" {
+  service = "generativelanguage.googleapis.com"
+}
+
 resource "google_service_account" "api_service_account" {
   account_id   = "channelflow-api-sa"
   display_name = "ChannelFlow API Service Account"
+}
+
+resource "google_project_iam_member" "api_service_account_firestore_access" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.api_service_account.email}"
+}
+
+# --- API Keys ---
+
+resource "google_apikeys_key" "youtube_api_key" {
+  name         = "channel-flow-youtube-key"
+  display_name = "API key for YouTube Data API"
+
+  restrictions {
+    api_targets {
+      service = "youtube.googleapis.com"
+    }
+  }
+
+  depends_on = [google_project_service.apikeys, google_project_service.youtube]
+}
+
+resource "google_apikeys_key" "gemini_api_key" {
+  name         = "channel-flow-gemini-key"
+  display_name = "API key for Generative Language API"
+
+  restrictions {
+    api_targets {
+      service = "generativelanguage.googleapis.com"
+    }
+  }
+
+  depends_on = [google_project_service.apikeys, google_project_service.generativelanguage]
 }
 
 # --- Secrets ---
@@ -56,7 +90,7 @@ resource "google_secret_manager_secret" "youtube_api_key_secret" {
 
 resource "google_secret_manager_secret_version" "youtube_api_key_secret_version" {
   secret      = google_secret_manager_secret.youtube_api_key_secret.id
-  secret_data = var.youtube_api_key
+  secret_data = google_apikeys_key.youtube_api_key.key_string
 }
 
 resource "google_secret_manager_secret_iam_member" "youtube_api_key_access" {
@@ -96,7 +130,7 @@ resource "google_secret_manager_secret" "gemini_api_key_secret" {
 
 resource "google_secret_manager_secret_version" "gemini_api_key_secret_version" {
   secret      = google_secret_manager_secret.gemini_api_key_secret.id
-  secret_data = var.gemini_api_key
+  secret_data = google_apikeys_key.gemini_api_key.key_string
 }
 
 resource "google_secret_manager_secret_iam_member" "gemini_api_key_access" {
@@ -130,12 +164,18 @@ resource "google_cloud_run_v2_service" "api_service" {
   location = var.region
 
   template {
+    annotations = {
+      "tf-secret-version-youtube" = google_secret_manager_secret_version.youtube_api_key_secret_version.version
+      "tf-secret-version-channel" = google_secret_manager_secret_version.target_channel_id_secret_version.version
+      "tf-secret-version-gemini"  = google_secret_manager_secret_version.gemini_api_key_secret_version.version
+    }
+
     service_account = google_service_account.api_service_account.email
 
     volumes {
       name = "youtube-api-key-volume"
       secret {
-        secret  = google_secret_manager_secret.youtube_api_key_secret.secret_id
+        secret = google_secret_manager_secret.youtube_api_key_secret.secret_id
         items {
           path    = "YOUTUBE_API_KEY"
           version = "latest"
@@ -145,7 +185,7 @@ resource "google_cloud_run_v2_service" "api_service" {
     volumes {
       name = "target-channel-id-volume"
       secret {
-        secret  = google_secret_manager_secret.target_channel_id_secret.secret_id
+        secret = google_secret_manager_secret.target_channel_id_secret.secret_id
         items {
           path    = "TARGET_CHANNEL_ID"
           version = "latest"
@@ -155,7 +195,7 @@ resource "google_cloud_run_v2_service" "api_service" {
     volumes {
       name = "gemini-api-key-volume"
       secret {
-        secret  = google_secret_manager_secret.gemini_api_key_secret.secret_id
+        secret = google_secret_manager_secret.gemini_api_key_secret.secret_id
         items {
           path    = "GEMINI_API_KEY"
           version = "latest"
@@ -182,6 +222,59 @@ resource "google_cloud_run_v2_service" "api_service" {
       ports {
         container_port = 8080
       }
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+      env {
+        name  = "GCS_BUCKET_NAME"
+        value = google_storage_bucket.public_bucket.name
+      }
+      env {
+        name  = "GCP_REGION"
+        value = var.region
+      }
+      env {
+        name  = "GEMINI_MODEL_NAME"
+        value = var.gemini_model_name
+      }
+      env {
+        name  = "IMAGEN_MODEL_NAME"
+        value = var.imagen_model_name
+      }
+      env {
+        name = "GEMINI_API_KEY"
+
+
+        value_source {
+          secret_key_ref {
+            secret  = "gemini-api-key"
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name = "YOUTUBE_API_KEY"
+
+
+        value_source {
+          secret_key_ref {
+            secret  = "youtube-api-key"
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name = "TARGET_CHANNEL_ID"
+
+
+        value_source {
+          secret_key_ref {
+            secret  = "target-channel-id"
+            version = "latest"
+          }
+        }
+      }
     }
   }
 
@@ -194,7 +287,7 @@ resource "google_cloud_run_v2_service" "api_service" {
 
 resource "google_cloud_run_service_iam_member" "api_public_access" {
   location = google_cloud_run_v2_service.api_service.location
-  service     = google_cloud_run_v2_service.api_service.name
+  service  = google_cloud_run_v2_service.api_service.name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

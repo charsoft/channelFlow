@@ -1,33 +1,33 @@
 # Enable necessary APIs for the project
 resource "google_project_service" "cloudrun" {
-  project = var.project_id
-  service = "run.googleapis.com"
+  project            = var.project_id
+  service            = "run.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "artifactregistry" {
-  project = var.project_id
-  service = "artifactregistry.googleapis.com"
+  project            = var.project_id
+  service            = "artifactregistry.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "cloudbuild" {
-  project = var.project_id
-  service = "cloudbuild.googleapis.com"
+  project            = var.project_id
+  service            = "cloudbuild.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "firebase" {
-  project = var.project_id
-  service = "firebase.googleapis.com"
+  project            = var.project_id
+  service            = "firebase.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "firebasehosting" {
-  project = var.project_id
-  service = "firebasehosting.googleapis.com"
+  project            = var.project_id
+  service            = "firebasehosting.googleapis.com"
   disable_on_destroy = false
-  depends_on = [google_project_service.firebase]
+  depends_on         = [google_project_service.firebase]
 }
 
 # Create an Artifact Registry repository for Docker images

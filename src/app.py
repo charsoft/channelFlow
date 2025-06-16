@@ -157,7 +157,7 @@ async def startup_event():
     
     print("All agents have been initialized.")
 
-@app.post("/ingest-url")
+@app.post("/api/ingest-url")
 async def ingest_url(request: IngestUrlRequest):
     """
     API endpoint to manually trigger ingestion. Uses the shared IngestionAgent.
@@ -322,7 +322,7 @@ class RetriggerRequest(BaseModel):
     video_id: str
     stage: str # e.g., "transcription", "analysis", "copywriting", "visuals"
 
-@app.post("/re-trigger")
+@app.post("/api/re-trigger")
 async def re_trigger(request: RetriggerRequest):
     """
     Manually re-triggers a specific stage of the pipeline for a video.
