@@ -13,6 +13,7 @@ venv/
 # Terraform
 .terraform/
 
+*terraform/terraform.tfstate*
 .terraform.lock.hcl
 terraform/terraform.tfvars
 
@@ -29,6 +30,5 @@ terraform/terraform.tfvars
 firebase.json.local
 firebase.log
 
-terraform/terraform.tfstate
-terraform/terraform.tfstate.backup
+
 
