@@ -1,0 +1,16 @@
+[project]
+name = "channel"
+version = "0.1.0"
+dependencies = [
+    "google-generativeai",
+    "pydantic",
+    "opentelemetry-api",
+    "typing-extensions",
+    "fastapi",
+    "uvicorn",
+    "google-api-python-client",
+    "python-dotenv",
+    "google-cloud-firestore",
+    "pytube",
+    "google-cloud-storage",
+] 
