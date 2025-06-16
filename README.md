@@ -23,6 +23,8 @@ Configure Google OAuth Client: In your Google Cloud Console, under "APIs & Servi
 - Set up the environment for Python
 	- pyenv install 3.12.4
  - Create the virtual environment
+ 	- python -m venv .venv
+- Activate the virtual environment
  	- .\\.venv\\Scripts\\Activate.ps1
 - Now install the requirements into the virtual environment	
 	- pip install -r requirements.txt
