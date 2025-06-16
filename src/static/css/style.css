@@ -40,6 +40,7 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 40px;
+    grid-column: 1 / -1;
 }
 .nav-links {
     display: flex;
@@ -1151,22 +1152,35 @@ button.loading::after {
 
 #new-prompts-list .prompt-text {
     flex-grow: 1;
-    color: #d0d0d0;
+    margin-right: 10px;
+}
+
+.auth-button {
+    background: transparent;
+    border: 1px solid #4F46E5;
+    color: #4F46E5;
+    padding: 8px 16px;
+}
+
+.auth-button:hover {
+    background: rgba(79, 70, 229, 0.1);
+    box-shadow: none;
+    transform: none;
 }
 
 .button-secondary {
-    background-color: #4A5568; /* gray-700 */
-    color: white;
-    padding: 6px 12px;
-    border-radius: 5px;
-    border: none;
+    background: none;
+    border: 1px solid #CBD5E1;
+    color: #4F46E5;
+    padding: 8px 16px;
+    border-radius: 8px;
     cursor: pointer;
     transition: background-color 0.2s;
     font-size: 0.9em;
 }
 
 .button-secondary:hover {
-    background-color: #2D3748; /* gray-800 */
+    background-color: rgba(79, 70, 229, 0.1);
 }
 
 .inline-loader {

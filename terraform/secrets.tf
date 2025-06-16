@@ -14,12 +14,10 @@ variable "google_client_secret" {
   sensitive   = true
 }
 
-# The `random` provider is used to generate a secure secret key.
-provider "random" {}
-
-resource "random_password" "secret_key" {
-  length  = 32
-  special = false # Fernet keys are URL-safe base64, so no special chars needed
+variable "secret_key" {
+  type        = string
+  description = "A URL-safe, base64-encoded 32-byte key for Fernet encryption."
+  sensitive   = true
 }
 
 resource "google_secret_manager_secret" "app_secret_key" {
@@ -33,7 +31,7 @@ resource "google_secret_manager_secret" "app_secret_key" {
 
 resource "google_secret_manager_secret_version" "app_secret_key_version" {
   secret      = google_secret_manager_secret.app_secret_key.id
-  secret_data = random_password.secret_key.result
+  secret_data = var.secret_key
 }
 
 resource "google_secret_manager_secret" "google_client_id_secret" {
@@ -62,6 +60,47 @@ resource "google_secret_manager_secret" "google_client_secret_secret" {
 resource "google_secret_manager_secret_version" "google_client_secret_secret_version" {
   secret      = google_secret_manager_secret.google_client_secret_secret.id
   secret_data = var.google_client_secret
+}
+
+# --- Firebase Web App Config Secrets ---
+
+resource "google_secret_manager_secret" "firebase_api_key_secret" {
+  secret_id = "channelflow-firebase-api-key"
+  project   = var.project_id
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "firebase_api_key_secret_version" {
+  secret      = google_secret_manager_secret.firebase_api_key_secret.id
+  secret_data = var.firebase_api_key
+}
+
+resource "google_secret_manager_secret" "firebase_auth_domain_secret" {
+  secret_id = "channelflow-firebase-auth-domain"
+  project   = var.project_id
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "firebase_auth_domain_secret_version" {
+  secret      = google_secret_manager_secret.firebase_auth_domain_secret.id
+  secret_data = var.firebase_auth_domain
+}
+
+resource "google_secret_manager_secret" "firebase_project_id_secret" {
+  secret_id = "channelflow-firebase-project-id"
+  project   = var.project_id
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "firebase_project_id_secret_version" {
+  secret      = google_secret_manager_secret.firebase_project_id_secret.id
+  secret_data = var.firebase_project_id
 }
 
 # --- Secrets from main.tf ---
@@ -124,4 +163,4 @@ resource "google_secret_manager_secret_iam_member" "gemini_api_key_access" {
   secret_id = google_secret_manager_secret.gemini_api_key_secret.id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.api_service_account.email}"
-} 
+}

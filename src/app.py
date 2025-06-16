@@ -32,6 +32,7 @@ from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from .security import encrypt_data, decrypt_data
+from fastapi.staticfiles import StaticFiles
 
 # Load environment variables from .env file
 load_dotenv()
@@ -974,4 +975,8 @@ async def ingest_video(request: IngestRequest):
     except Exception as e:
         import traceback
         print(f"Error in /ingest: {e}\n{traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"message": "An internal error occurred."}) 
+        return JSONResponse(status_code=500, content={"message": "An internal error occurred."})
+
+# This must be the LAST app mount. If it's before the API routes,
+# it can hijack paths like /api/config and try to serve them as files.
+app.mount("/", StaticFiles(directory="src/static", html=True), name="static") 

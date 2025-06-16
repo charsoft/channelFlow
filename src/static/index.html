@@ -10,29 +10,35 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
 </head>
+
+
 <body>
     <div class="main-container">
+        
         <div id="back-to-workflow">← Back to Workflow</div>
-        <div class="content-column">
-            <div class="header-nav">
-                <div class="header-left">
-                    <button class="hamburger-menu" aria-label="Open navigation menu">
-                        <span class="hamburger-line"></span>
-                        <span class="hamburger-line"></span>
-                        <span class="hamburger-line"></span>
-                    </button>
-                    <a href="/" class="logo-link">
-                        <img src="/channel-flow-logo.png" alt="ChannelFlow Logo" class="logo-icon">
-                        <span class="logo-text"><img src="/channel-flow-words-only.png" alt="ChannelFlow Text" class="logo-text"></span>
-                    </a>
+        <div class="header-nav">
+            <div class="header-left">
+                <button class="hamburger-menu" aria-label="Open navigation menu">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+                <a href="/" class="logo-link">
+                    <img src="/channel-flow-logo.png" alt="ChannelFlow Logo" class="logo-icon">
+                    <span class="logo-text"><img src="/channel-flow-words-only.png" alt="ChannelFlow Text" class="logo-text"></span>
+                </a>
+            </div>
+            <nav class="nav-links">
+                <a href="/management" class="nav-link button-cta">Content Dashboard</a>
+                <a href="/management" class="nav-link button-cta">Maintenance</a>
+                <div class="user-auth">
+                    <button id="loginButton" class="nav-link auth-button">Login</button>
+                    <button id="logoutButton" class="nav-link auth-button" style="display: none;">Logout</button>
+                    <p id="userName" style="display: none;"></p>
                 </div>
-            </div>
-            <div class="main-header-nav">
-                <nav class="nav-links">
-                    <a href="/management" class="nav-link button-cta">Content Dashboard</a>
-                    <a href="/management" class="nav-link button-secondary">Maintenance</a>
-                </nav>
-            </div>
+            </nav>
+        </div>
+        <div class="content-column">
             <h1>Amplify your message.</h1>
             <p>Paste a YouTube link to transform a single video into a complete, multi-platform marketing campaign, orchestrated by autonomous AI agents.</p>
             <form id="ingestForm">
@@ -63,12 +69,7 @@
         </div>
     </div>
 
-    <div class="user-auth">
-        <button id="loginButton" class="auth-button">Login with Google</button>
-        <button id="logoutButton" class="auth-button" style="display: none;">Logout</button>
-        <p id="userName" style="display: none;"></p>
-    </div>
-
+    
     <script src="/js/main.js"></script>
 </body>
 </html> 

@@ -5,7 +5,7 @@ terraform {
       version = ">= 5.45.0"
     }
     google-beta = {
-      source = "hashicorp/google-beta"
+      source  = "hashicorp/google-beta"
       version = ">= 5.45.0"
     }
     random = {
@@ -15,8 +15,8 @@ terraform {
   }
 
   backend "gcs" {
-    bucket  = "channelflow-test-deploy-tfstate"
-    prefix  = "terraform/state"
+    bucket = "channelflow-test-deploy-tfstate"
+    prefix = "terraform/state"
   }
 }
 
@@ -266,15 +266,30 @@ resource "google_cloud_run_v2_service" "api_service" {
       }
       env {
         name = "FIREBASE_API_KEY"
-        value = data.google_firebase_web_app_config.default.api_key
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.firebase_api_key_secret.secret_id
+            version = "latest"
+          }
+        }
       }
       env {
         name = "FIREBASE_AUTH_DOMAIN"
-        value = data.google_firebase_web_app_config.default.auth_domain
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.firebase_auth_domain_secret.secret_id
+            version = "latest"
+          }
+        }
       }
       env {
         name = "FIREBASE_PROJECT_ID"
-        value = var.project_id
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.firebase_project_id_secret.secret_id
+            version = "latest"
+          }
+        }
       }
     }
   }

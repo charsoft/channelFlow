@@ -3,7 +3,7 @@
 
 resource "google_storage_bucket" "terraform_state" {
   name          = "${var.project_id}-tfstate"
-  location      = "US" # GCS bucket locations must be multi-regional or regional
+  location      = "US"  # GCS bucket locations must be multi-regional or regional
   force_destroy = false # Protects state from accidental deletion
 
   # Enable versioning to keep a history of your state files, which allows for recovery.
