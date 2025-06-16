@@ -23,3 +23,5 @@ terraform.tfstate.backup
 # OS-specific
 .DS_Store
 *~$
+
+terraform/terraform.tfvars

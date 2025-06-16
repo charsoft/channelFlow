@@ -1,5 +1,5 @@
 [project]
-name = "channel"
+name = "channelFlow"
 version = "0.1.0"
 dependencies = [
     "google-generativeai",
