@@ -12,10 +12,10 @@ venv/
 
 # Terraform
 .terraform/
-
-*terraform/terraform.tfstate*
 .terraform.lock.hcl
-terraform/terraform.tfvars
+*.tfstate
+*.tfstate.*.backup
+!terraform/terraform.tfvars.example # Don't ignore example tfvars
 
 # IDE / Editor specific
 .vscode/
