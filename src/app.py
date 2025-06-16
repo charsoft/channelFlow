@@ -1,12 +1,12 @@
 import asyncio
 import os
 from datetime import datetime
-from fastapi import FastAPI, Request, Form, Depends
+from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from google.cloud import storage, firestore
+from google.cloud import storage
 from .database import db
 from .agents.ingestion import IngestionAgent, get_video_id
 from .agents.transcription import TranscriptionAgent
@@ -23,8 +23,15 @@ import yt_dlp
 import tempfile
 import uuid
 import shutil
+import firebase_admin
+from firebase_admin import credentials, auth
 #from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from .security import encrypt_data, decrypt_data
 
 # Load environment variables from .env file
 load_dotenv()
@@ -44,7 +51,7 @@ app.add_middleware(
 # In a production multi-worker environment, a more robust cache like Redis or a shared filesystem would be better.
 video_cache = {}
 
-db = firestore.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT"))
+# db = firestore.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT"))
 #templates = Jinja2Templates(directory="src/static")
 
 @app.on_event("shutdown")
@@ -71,12 +78,30 @@ class IngestUrlRequest(BaseModel):
     url: str
     force: bool = False
 
+class AuthCodeRequest(BaseModel):
+    code: str
+
+class ClientConfig(BaseModel):
+    firebase_api_key: str
+    firebase_auth_domain: str
+    firebase_project_id: str
+    google_client_id: str
+
 @app.on_event("startup")
 async def startup_event():
     """
     On startup, instantiate all the agents to register their event handlers
     and start any background tasks.
     """
+    # Initialize Firebase Admin SDK
+    try:
+        # In a Cloud Run environment, the GOOGLE_APPLICATION_CREDENTIALS env var
+        # is set automatically. For local dev, you'd set it to your service account key.
+        firebase_admin.initialize_app()
+        print("✅ Firebase Admin SDK initialized successfully.")
+    except Exception as e:
+        print(f"🚨 Failed to initialize Firebase Admin SDK: {e}")
+
     print("Application starting up...")
     
     # Get GCS Bucket Name
@@ -157,12 +182,134 @@ async def startup_event():
     
     print("All agents have been initialized.")
 
-@app.post("/api/ingest-url")
-async def ingest_url(request: IngestUrlRequest):
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+async def verify_token(token: str = Depends(oauth2_scheme)):
     """
-    API endpoint to manually trigger ingestion. Uses the shared IngestionAgent.
+    FastAPI dependency to verify Firebase ID token.
+    """
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        # Verify the token against the Firebase Auth API.
+        decoded_token = auth.verify_id_token(token)
+        return decoded_token
+    except auth.InvalidIdTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception as e:
+        print(f"Error verifying token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while verifying token",
+        )
+
+@app.get("/api/config", response_model=ClientConfig)
+async def get_client_config():
+    """
+    Provides the client-side configuration needed for Firebase and Google OAuth.
+    """
+    config = {
+        "firebase_api_key": os.getenv("FIREBASE_API_KEY"),
+        "firebase_auth_domain": os.getenv("FIREBASE_AUTH_DOMAIN"),
+        "firebase_project_id": os.getenv("FIREBASE_PROJECT_ID"),
+        "google_client_id": os.getenv("GOOGLE_CLIENT_ID"),
+    }
+    if not all(config.values()):
+        raise HTTPException(
+            status_code=500,
+            detail="Server is missing required client-side configuration environment variables."
+        )
+    return config
+
+@app.post("/api/oauth/exchange-code")
+async def exchange_code(request: AuthCodeRequest, decoded_token: dict = Depends(verify_token)):
+    """
+    Exchanges a Google OAuth authorization code for credentials and stores them securely.
+    """
+    user_id = decoded_token.get("uid")
+    
+    try:
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+        if not client_id or not client_secret:
+            raise ValueError("Google Client ID or Secret is not configured on the server.")
+
+        # IMPORTANT: The redirect_uri must EXACTLY match one of the authorized redirect URIs
+        # for the OAuth 2.0 client, which you configured in the Google Cloud console.
+        # For a pure client-side flow like this, 'postmessage' is a common and secure choice.
+        flow = Flow.from_client_config(
+            client_config={
+                "web": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                }
+            },
+            scopes=['https://www.googleapis.com/auth/youtube.readonly'],
+            redirect_uri='postmessage'
+        )
+
+        # Exchange the authorization code for credentials
+        flow.fetch_token(code=request.code)
+        creds = flow.credentials
+
+        # Convert credentials to a dict and encrypt them
+        creds_json = creds.to_json()
+        encrypted_creds = encrypt_data(creds_json.encode())
+
+        # Save encrypted credentials to Firestore
+        cred_doc_ref = db.collection("user_credentials").document(user_id)
+        await cred_doc_ref.set({"credentials": encrypted_creds})
+
+        return JSONResponse(content={"message": "Successfully connected YouTube account."})
+
+    except Exception as e:
+        import traceback
+        print(f"Error exchanging code for user {user_id}: {e}\n{traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to exchange authorization code."
+        )
+
+@app.post("/api/ingest-url")
+async def ingest_url(request: IngestUrlRequest, decoded_token: dict = Depends(verify_token)):
+    """
+    API endpoint to manually trigger ingestion. Uses the user's credentials.
+    Requires authentication.
     """
     try:
+        user_id = decoded_token.get("uid")
+        print(f"Request received from authenticated user: {user_id}")
+
+        # --- Get User's YouTube Credentials ---
+        cred_doc_ref = db.collection("user_credentials").document(user_id)
+        cred_doc = await cred_doc_ref.get()
+
+        if not cred_doc.exists:
+            return JSONResponse(status_code=403, content={"message": "User has not connected their YouTube account. Please authorize.", "code": "AUTH_REQUIRED"})
+
+        encrypted_creds = cred_doc.to_dict().get("credentials")
+        decrypted_creds_json = decrypt_data(encrypted_creds)
+        creds = Credentials.from_authorized_user_info(json.loads(decrypted_creds_json))
+        
+        # Auto-refresh logic: If the token is expired, google-auth will try to refresh it
+        # if a refresh token is present. We should save the potentially refreshed credentials.
+        if creds.expired and creds.refresh_token:
+            # The library handles the refresh call implicitly when you use the client
+            print(f"User {user_id} credentials expired. They will be refreshed on next API call.")
+
+        youtube = build('youtube', 'v3', credentials=creds)
+        # --- End Get User's YouTube Credentials ---
+        
         video_id = get_video_id(request.url)
         if not video_id:
             return JSONResponse(status_code=400, content={"message": "Invalid YouTube URL"})
@@ -231,13 +378,25 @@ async def ingest_url(request: IngestUrlRequest):
             await video_doc_ref.delete()
             print(f"   Deleted Firestore document: {video_id}")
             
-        # Proceed with ingestion for a new video or a forced reprocessing
-        youtube_api_key = os.getenv("YOUTUBE_API_KEY")
-        if not youtube_api_key:
-            return JSONResponse(status_code=500, content={"message": "YOUTUBE_API_KEY is not configured on the server."})
+        # Proceed with ingestion for a new video or a forced reprocessing, using user's credentials
+        try:
+            video_response = await asyncio.to_thread(
+                youtube.videos().list(part="snippet", id=video_id).execute
+            )
+            if not video_response.get("items"):
+                return JSONResponse(status_code=400, content={"message": "Could not retrieve video title (video may be private or not exist)."})
+            video_title = video_response["items"][0]["snippet"]["title"]
+        except Exception as e:
+            # This can happen if the user's token is invalid, revoked, or doesn't have permission.
+            print(f"YouTube API Error for user {user_id}: {e}")
+            return JSONResponse(status_code=403, content={"message": "Failed to access YouTube API. Your credentials may be invalid or revoked. Please try connecting your account again.", "code": "AUTH_REQUIRED"})
 
-        ingestion_agent = IngestionAgent(api_key=youtube_api_key)
-        video_title = await ingestion_agent.get_video_title(video_id)
+        # After getting the credentials, save them back to Firestore.
+        # This is because a refresh token might have been used, and a new access token issued.
+        # The google-auth library updates the credentials object in place.
+        new_creds_json = creds.to_json()
+        encrypted_new_creds = encrypt_data(new_creds_json.encode())
+        await cred_doc_ref.set({"credentials": encrypted_new_creds})
         
         if not video_title:
              return JSONResponse(status_code=400, content={"message": "Could not retrieve video title."})
@@ -252,7 +411,8 @@ async def ingest_url(request: IngestUrlRequest):
         return JSONResponse(status_code=202, content={"message": "Video ingestion started.", "video_id": video_id})
 
     except Exception as e:
-        print(f"Error in /ingest-url: {e}")
+        import traceback
+        print(f"Error in /ingest-url: {e}\n{traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"message": "An internal error occurred."})
 
 @app.get("/status/{video_id}")
@@ -793,11 +953,10 @@ async def ingest_video(request: IngestRequest):
             return JSONResponse(status_code=200, content=response_data)
 
         # Proceed with ingestion for a new video
-        youtube_api_key = os.getenv("YOUTUBE_API_KEY")
-        if not youtube_api_key:
-            return JSONResponse(status_code=500, content={"message": "YOUTUBE_API_KEY is not configured on the server."})
+        ingestion_agent = app.state.ingestion_agent
+        if not ingestion_agent:
+            return JSONResponse(status_code=500, content={"message": "IngestionAgent is not available."})
 
-        ingestion_agent = IngestionAgent(api_key=youtube_api_key)
         video_title = await ingestion_agent.get_video_title(video_id)
         
         if not video_title:
@@ -813,5 +972,6 @@ async def ingest_video(request: IngestRequest):
         return JSONResponse(status_code=202, content={"message": "Video ingestion started.", "video_id": video_id})
 
     except Exception as e:
-        print(f"Error in /ingest: {e}")
+        import traceback
+        print(f"Error in /ingest: {e}\n{traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"message": "An internal error occurred."}) 

@@ -30,6 +30,21 @@ resource "google_project_service" "firebasehosting" {
   depends_on         = [google_project_service.firebase]
 }
 
+# Create a Firebase Web App
+resource "google_firebase_web_app" "default" {
+  provider     = google-beta
+  project      = var.project_id
+  display_name = "ChannelFlow Web"
+  depends_on   = [google_project_service.firebase]
+}
+
+# Get the config for the created Firebase Web App
+data "google_firebase_web_app_config" "default" {
+  provider   = google-beta
+  project    = var.project_id
+  web_app_id = google_firebase_web_app.default.app_id
+}
+
 # Create an Artifact Registry repository for Docker images
 resource "google_artifact_registry_repository" "api_repo" {
   project       = var.project_id

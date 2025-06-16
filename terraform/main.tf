@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/google"
       version = ">= 5.45.0"
     }
+    google-beta = {
+      source = "hashicorp/google-beta"
+      version = ">= 5.45.0"
+    }
     random = {
       source  = "hashicorp/random"
       version = ">= 3.0.0"
@@ -18,11 +22,24 @@ provider "google" {
   billing_project       = var.project_id
 }
 
+provider "google-beta" {
+  project               = var.project_id
+  region                = var.region
+  user_project_override = true
+  billing_project       = var.project_id
+}
+
 resource "google_project_service" "firestore" {
   service = "firestore.googleapis.com"
 }
 
+resource "google_project_service" "iam" {
+  project = var.project_id
+  service = "iam.googleapis.com"
+}
+
 resource "google_project_service" "secretmanager" {
+  project = var.project_id
   service = "secretmanager.googleapis.com"
 }
 
@@ -35,6 +52,7 @@ resource "google_project_service" "youtube" {
 }
 
 resource "google_project_service" "generativelanguage" {
+  project = var.project_id
   service = "generativelanguage.googleapis.com"
 }
 
@@ -75,68 +93,6 @@ resource "google_apikeys_key" "gemini_api_key" {
   }
 
   depends_on = [google_project_service.apikeys, google_project_service.generativelanguage]
-}
-
-# --- Secrets ---
-
-# YouTube API Key Secret
-resource "google_secret_manager_secret" "youtube_api_key_secret" {
-  secret_id = "youtube-api-key"
-  replication {
-    auto {}
-  }
-  depends_on = [google_project_service.secretmanager]
-}
-
-resource "google_secret_manager_secret_version" "youtube_api_key_secret_version" {
-  secret      = google_secret_manager_secret.youtube_api_key_secret.id
-  secret_data = google_apikeys_key.youtube_api_key.key_string
-}
-
-resource "google_secret_manager_secret_iam_member" "youtube_api_key_access" {
-  secret_id = google_secret_manager_secret.youtube_api_key_secret.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.api_service_account.email}"
-}
-
-# Target Channel ID Secret
-resource "google_secret_manager_secret" "target_channel_id_secret" {
-  secret_id = "target-channel-id"
-  replication {
-    auto {}
-  }
-  depends_on = [google_project_service.secretmanager]
-}
-
-resource "google_secret_manager_secret_version" "target_channel_id_secret_version" {
-  secret      = google_secret_manager_secret.target_channel_id_secret.id
-  secret_data = var.target_channel_id
-}
-
-resource "google_secret_manager_secret_iam_member" "target_channel_id_access" {
-  secret_id = google_secret_manager_secret.target_channel_id_secret.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.api_service_account.email}"
-}
-
-# Gemini API Key Secret
-resource "google_secret_manager_secret" "gemini_api_key_secret" {
-  secret_id = "gemini-api-key"
-  replication {
-    auto {}
-  }
-  depends_on = [google_project_service.secretmanager]
-}
-
-resource "google_secret_manager_secret_version" "gemini_api_key_secret_version" {
-  secret      = google_secret_manager_secret.gemini_api_key_secret.id
-  secret_data = google_apikeys_key.gemini_api_key.key_string
-}
-
-resource "google_secret_manager_secret_iam_member" "gemini_api_key_access" {
-  secret_id = google_secret_manager_secret.gemini_api_key_secret.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.api_service_account.email}"
 }
 
 resource "random_string" "bucket_suffix" {
@@ -236,7 +192,7 @@ resource "google_cloud_run_v2_service" "api_service" {
       }
       env {
         name  = "GEMINI_MODEL_NAME"
-        value = var.gemini_model_name
+        value = "gemini-1.5-pro-latest"
       }
       env {
         name  = "IMAGEN_MODEL_NAME"
@@ -275,6 +231,45 @@ resource "google_cloud_run_v2_service" "api_service" {
           }
         }
       }
+      env {
+        name = "SECRET_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.app_secret_key.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name = "GOOGLE_CLIENT_ID"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.google_client_id_secret.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name = "GOOGLE_CLIENT_SECRET"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.google_client_secret_secret.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name = "FIREBASE_API_KEY"
+        value = data.google_firebase_web_app_config.default.api_key
+      }
+      env {
+        name = "FIREBASE_AUTH_DOMAIN"
+        value = data.google_firebase_web_app_config.default.auth_domain
+      }
+      env {
+        name = "FIREBASE_PROJECT_ID"
+        value = var.project_id
+      }
     }
   }
 
@@ -283,13 +278,6 @@ resource "google_cloud_run_v2_service" "api_service" {
     google_secret_manager_secret_iam_member.target_channel_id_access,
     google_secret_manager_secret_iam_member.gemini_api_key_access,
   ]
-}
-
-resource "google_cloud_run_service_iam_member" "api_public_access" {
-  location = google_cloud_run_v2_service.api_service.location
-  service  = google_cloud_run_v2_service.api_service.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
 }
 
 output "cloud_run_service_url" {

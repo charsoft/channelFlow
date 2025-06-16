@@ -6,6 +6,10 @@ const mainContainer = document.querySelector('.main-container');
 const amplifyButton = ingestForm.querySelector('button');
 const buttonText = amplifyButton.querySelector('.button-text');
 const backButton = document.getElementById('back-to-workflow');
+const loginButton = document.getElementById('loginButton');
+const logoutButton = document.getElementById('logoutButton');
+const userName = document.getElementById('userName');
+const connectYouTubeButton = document.getElementById('connectYouTubeButton');
 
 let currentVideoId = null;
 let eventSource = null; // To hold the EventSource connection
@@ -32,6 +36,124 @@ document.addEventListener('DOMContentLoaded', () => {
     hamburger.addEventListener('click', () => {
         navLinks.classList.toggle('active');
     });
+
+    // Initialize Firebase and Google Auth by fetching config from the backend
+    async function initializeApp() {
+        try {
+            const response = await fetch('/api/config');
+            if (!response.ok) {
+                throw new Error('Could not load configuration from server.');
+            }
+            const config = await response.json();
+
+            // Initialize Firebase
+            const firebaseConfig = {
+                apiKey: config.firebase_api_key,
+                authDomain: config.firebase_auth_domain,
+                projectId: config.firebase_project_id,
+            };
+            firebase.initializeApp(firebaseConfig);
+
+            // Initialize Google Identity Services (GIS)
+            initializeGis(config.google_client_id);
+
+        } catch (error) {
+            console.error("Failed to initialize app:", error);
+            Swal.fire('Initialization Error', error.message, 'error');
+        }
+    }
+
+    initializeApp();
+
+    // Firebase Auth Logic
+    const auth = firebase.auth();
+    const provider = new firebase.auth.GoogleAuthProvider();
+    // Request access to the user's YouTube account.
+    // The "force" approval prompt ensures they re-consent, which is good for testing.
+    // In production, you might remove 'prompt': 'consent'.
+    provider.addScope('https://www.googleapis.com/auth/youtube.readonly');
+    provider.setCustomParameters({
+        'access_type': 'offline',
+        'prompt': 'consent'
+    });
+
+    // Google Identity Services (GIS) for getting auth code
+    let tokenClient;
+
+    function initializeGis(clientId) {
+        if (!clientId || clientId.startsWith("YOUR")) {
+            console.error("Google Client ID is not configured.");
+            // This will be caught by the app initialization block
+            return;
+        }
+        tokenClient = google.accounts.oauth2.initCodeClient({
+            client_id: clientId,
+            scope: 'https://www.googleapis.com/auth/youtube.readonly',
+            callback: (response) => {
+                if (response.code) {
+                    console.log("GIS Auth Code received:", response.code);
+                    exchangeAuthCode(response.code);
+                } else {
+                    console.error("GIS response did not contain auth code.", response);
+                    Swal.fire('Authorization Failed', 'Could not get authorization from Google.', 'error');
+                }
+            },
+        });
+    }
+
+    // Wait for Google Identity Services to load - This is handled by the async init now
+    // window.onload = () => {
+    //     initializeGis();
+    // };
+
+    loginButton.addEventListener('click', () => {
+        auth.signInWithPopup(provider)
+            .then(async (result) => {
+                console.log("Sign-in successful", result);
+                // This gives you a Google OAuth2 Access Token. You can use it to access the Google API.
+                const credential = result.credential;
+                const oauthToken = credential.accessToken;
+                const user = result.user;
+                
+                // IMPORTANT: Send the ID Token to your backend for verification
+                const idToken = await user.getIdToken();
+
+                // Here you could also implement the server-side auth code flow
+                // For now, we'll focus on just authenticating the user.
+                
+                updateUIAfterLogin(user.displayName, idToken);
+            })
+            .catch((error) => {
+                console.error("Authentication failed", error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Authentication Failed',
+                    text: error.message,
+                });
+            });
+    });
+
+    logoutButton.addEventListener('click', () => {
+        auth.signOut().then(() => {
+            console.log("Sign-out successful");
+            updateUIAfterLogout();
+        });
+    });
+
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            // User is signed in.
+            user.getIdToken().then(idToken => {
+                updateUIAfterLogin(user.displayName, idToken);
+            });
+        } else {
+            // User is signed out.
+            updateUIAfterLogout();
+        }
+    });
+
+    // Initialize button state on page load
+    amplifyButton.disabled = true;
 });
 
 const statusOrder = [
@@ -99,6 +221,10 @@ function startListening(videoId) {
 
 ingestForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!window.idToken) {
+        Swal.fire({ icon: 'error', title: 'Not Authenticated', text: 'Please log in first.' });
+        return;
+    }
     const url = urlInput.value;
     if (!url) {
         Swal.fire({ icon: 'error', title: 'Oops...', text: 'Please enter a YouTube URL.' });
@@ -127,7 +253,10 @@ ingestForm.addEventListener('submit', async (e) => {
         // First, check if the video exists without forcing
         const response = await fetch('/api/ingest-url', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${window.idToken}`
+            },
             body: JSON.stringify({ url: url, force: false }),
         });
 
@@ -212,11 +341,33 @@ async function sendIngestRequest(url, force) {
     try {
         const response = await fetch('/api/ingest-url', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${window.idToken}`
+            },
             body: JSON.stringify({ url, force }),
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.message);
+        if (!response.ok) {
+            // Check for our custom auth error code
+            if (response.status === 403 && data.code === "AUTH_REQUIRED") {
+                 Swal.fire({
+                    title: 'YouTube Account Required',
+                    text: "Please connect your YouTube account first to continue.",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Connect Now',
+                 }).then((result) => {
+                    if (result.isConfirmed) {
+                        connectYouTubeButton.click();
+                    }
+                 })
+                 statusDiv.textContent = 'Authorization needed.';
+            } else {
+                throw new Error(data.message);
+            }
+            return; // Stop processing on error
+        }
         
         currentVideoId = data.video_id;
         statusDiv.textContent = `Processing video ID: ${currentVideoId}. Waiting for updates...`;
@@ -384,5 +535,58 @@ async function handleStageClick(videoId, agentId) {
     } catch(error) {
         statusDiv.textContent = `Error: ${error.message}`;
         statusDiv.classList.add('status-error');
+    }
+}
+
+function updateUIAfterLogin(name, idToken) {
+    userName.textContent = `Logged in as: ${name}`;
+    userName.style.display = 'block';
+    loginButton.style.display = 'none';
+    logoutButton.style.display = 'block';
+    connectYouTubeButton.style.display = 'block';
+
+    // Store the token to be used in API requests
+    // Using a global variable for simplicity here
+    window.idToken = idToken;
+    amplifyButton.disabled = urlInput.value.trim() === '';
+}
+
+function updateUIAfterLogout() {
+    userName.textContent = '';
+    userName.style.display = 'none';
+    loginButton.style.display = 'block';
+    logoutButton.style.display = 'none';
+    connectYouTubeButton.style.display = 'none';
+    window.idToken = null;
+    amplifyButton.disabled = true; // Disable main action if logged out
+}
+
+connectYouTubeButton.addEventListener('click', () => {
+    if (tokenClient) {
+        tokenClient.requestCode();
+    } else {
+        Swal.fire('Initialization Error', 'Google authentication is not ready yet. Please try again in a moment.', 'error');
+    }
+});
+
+async function exchangeAuthCode(code) {
+    try {
+        const response = await fetch('/api/oauth/exchange-code', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${window.idToken}`
+            },
+            body: JSON.stringify({ code: code }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to connect account.');
+        }
+        Swal.fire('Success!', 'Your YouTube account has been connected.', 'success');
+        connectYouTubeButton.style.display = 'none'; // Hide button after successful connection
+    } catch (error) {
+        console.error("Failed to exchange auth code:", error);
+        Swal.fire('Connection Failed', error.toString(), 'error');
     }
 } 
