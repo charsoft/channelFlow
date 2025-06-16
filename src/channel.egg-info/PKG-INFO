@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: channel
+Version: 0.1.0
+Requires-Dist: google-generativeai
+Requires-Dist: pydantic
+Requires-Dist: opentelemetry-api
+Requires-Dist: typing-extensions
+Requires-Dist: fastapi
+Requires-Dist: uvicorn
+Requires-Dist: google-api-python-client
+Requires-Dist: python-dotenv
+Requires-Dist: google-cloud-firestore
+Requires-Dist: pytube
+Requires-Dist: google-cloud-storage
