@@ -23,7 +23,7 @@ install google cloud sdk
 	- Now install the requirements into the virtual environment	
 		- pip install -r requirements.txt	
 	
-
+- Enable VertexAI service
 
 - Manually create the OAuth Client ID and Secret in GCP Console
 	- under APIs & Services, click "Credentials"
