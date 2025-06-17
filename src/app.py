@@ -756,18 +756,6 @@ async def get_video(video_id: str):
         print(f"Error fetching video {video_id}: {e}")
         return JSONResponse(status_code=500, content={"message": "Failed to fetch video."})
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    return "API is running"
-
-@app.get("/management", response_class=HTMLResponse)
-async def management(request: Request):
-    return "API is running"
-
-@app.get("/video/{video_id}", response_class=HTMLResponse)
-async def video_detail_page(request: Request, video_id: str):
-    return "API is running"
-
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
