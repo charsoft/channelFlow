@@ -238,20 +238,20 @@ async def verify_token(authorization: str = Header(None)):
 @app.get("/api/config", response_model=ClientConfig)
 async def get_client_config():
     """
-    Provides the client-side configuration needed for Firebase and Google OAuth.
+    Provides the client-side application with necessary configuration,
+    such as the Google Client ID for the OAuth flow.
     """
-    config = {
-        "firebase_api_key": os.getenv("FIREBASE_API_KEY"),
-        "firebase_auth_domain": os.getenv("FIREBASE_AUTH_DOMAIN"),
-        "firebase_project_id": os.getenv("FIREBASE_PROJECT_ID"),
-        "google_client_id": os.getenv("GOOGLE_CLIENT_ID"),
-    }
-    if not all(config.values()):
-        raise HTTPException(
-            status_code=500,
-            detail="Server is missing required client-side configuration environment variables."
-        )
-    return config
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    print(f"🛠️ [CONFIG] Providing Google Client ID to frontend: {client_id}")
+    if not client_id:
+        raise ValueError("GOOGLE_CLIENT_ID is not set in the environment.")
+
+    return ClientConfig(
+        firebase_api_key=os.getenv("FIREBASE_API_KEY"),
+        firebase_auth_domain=os.getenv("FIREBASE_AUTH_DOMAIN"),
+        firebase_project_id=os.getenv("FIREBASE_PROJECT_ID"),
+        google_client_id=client_id
+    )
 
 @app.post("/api/oauth/exchange-code")
 async def exchange_code(request: AuthCodeRequest, decoded_token: dict = Depends(verify_token)):
