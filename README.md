@@ -20,6 +20,18 @@ FIREBASE
   - Click the blue Add domain button.
   - Type localhost and click Add.
 
+How to Enable Google Sign-in Provider
+- Go to your Firebase Console: https://console.firebase.google.com/
+- Select your project.
+- Navigate to the Authentication section (using the "Build" menu on the left).
+- Click on the Sign-in method tab (next to "Users" and "Settings").
+- You will see a list of "Sign-in providers". Click on Google from this list.
+- A new panel will slide out.
+- Click the Enable toggle switch to turn it on.
+- A Project support email dropdown will appear. Select your email address from the list.
+- Click the Save button.
+- Once you enable this, you are explicitly telling your Firebase project that it is allowed to use Google accounts for authentication. After saving, wait about a minute for the setting to take effect, then try logging in again. This should resolve the error.
+
 
 
 
