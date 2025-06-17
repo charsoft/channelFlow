@@ -52,11 +52,6 @@ resource "google_project_service" "generativelanguage" {
   service = "generativelanguage.googleapis.com"
 }
 
-resource "google_service_account" "api_service_account" {
-  account_id   = "channelflow-api-sa"
-  display_name = "ChannelFlow API Service Account"
-}
-
 # --- API Keys ---
 
 resource "google_apikeys_key" "youtube_api_key" {

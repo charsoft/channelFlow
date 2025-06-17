@@ -111,6 +111,10 @@ resource "google_cloudbuild_trigger" "app_new_build" {
   service_account = google_service_account.cloud_build.id
   included_files = [
     "src/**",
+    "terraform/**",
+    "requirements.txt",
+    "cors-config.json",
+    "Dockerfile"
   ]
   github {
     name  = local.repository_name

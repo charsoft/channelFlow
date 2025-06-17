@@ -7,6 +7,10 @@ terraform {
       source = "hashicorp/google-beta"
     }
   }
+  backend "gcs" {
+    bucket = "channel-flow-2-tf-storage-0617"
+    prefix = "terraform/state/environments/main"
+  }
 }
 
 resource "time_sleep" "project_services" {
@@ -19,6 +23,7 @@ data "terraform_remote_state" "root" {
     bucket = "channel-flow-2-tf-storage-0617"
     prefix = "terraform/state"
   }
+  workspace = "default"
 }
 
 module "run_service" {
