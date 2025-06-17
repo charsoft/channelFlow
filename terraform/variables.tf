@@ -9,6 +9,9 @@ variable "region" {
   default     = "us-central1"
 }
 
+
+
+
 variable "target_channel_id" {
   description = "The YouTube channel ID to monitor. This will be stored in Secret Manager."
   type        = string
