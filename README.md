@@ -23,7 +23,8 @@ install google cloud sdk
 	- Now install the requirements into the virtual environment	
 		- pip install -r requirements.txt	
 	
-- Enable VertexAI service
+- Enable VertexAI service (go to the api keys page and set this to "web")
+- Enable YouTube API (configure the app to allow us to read their youtube account)
 
 - Manually create the OAuth Client ID and Secret in GCP Console
 	- under APIs & Services, click "Credentials"
