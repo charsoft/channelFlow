@@ -10,9 +10,8 @@ Setting it up in GCP
 
 Create a Google Cloud project
 
-- Clone this repo, open it up in your favorite code editor.
-	
-	- install google cloud sdk
+
+install google cloud sdk
 	- authenticate to google cloud
 	- Set your project to the one you just created
 	- Set up the environment for Python
@@ -46,7 +45,7 @@ Create a Google Cloud project
 	- copy the name, paste it into the terraform/main.tf somewhere around 17
 ----------------------
 Automated using Terraform: 
-Of course. Here are the steps to set up the infrastructure for a new project from a freshly cloned repository. This will be perfect for your `README.md`.
+
 
 ***
 
@@ -169,26 +168,4 @@ You can monitor the build and deployment progress in the Google Cloud Console un
 ------------------
 
  -----
-Create an artifact repo: 
-gcloud artifacts repositories create channelflow-api-repo --project=<<YOUR-PROJECT-ID-HERE>> --repository-format=docker --location=us-central1 --description="ChannelFlow API Docker repository"n
-Create the docker container, and push to your repo
-  - cd to the root of the repo first
-  - docker build -t channelflow:latest .
-  - docker tag channelflow:latest us-central1-docker.pkg.dev/<YOUR-PROJECT-ID-HERE>/channelflow-api-repo/channelflow:latest
-  - docker push us-central1-docker.pkg.dev/<YOUR-PROJECT-ID-HERE>/channelflow-api-repo/channelflow:latest
-  - (if not using terraform... and you won't every time, go to cloud run and redeploy because we haven't automated it yet) 
- - Run the Terraform files ()
- 	- copy terraform-example.tfvars --> terraform.tfvars
-    		- secret_key needs to be generated using this command: 
-			python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-		- firebase settings can be dound at console.firebase.google.com
-  		- oauth 2.0 client id and secrets should be placed here too.
- 	- cd terraform
-  	- terraform init
 
-
-
-In your code editor, open a terminal. 
-- cd terraform
-- terraform init --migrate state (use this to avoid any leftovers from the repo)
-- terraform plan
