@@ -93,7 +93,7 @@ export async function loginWithGoogle(idTokenFromGoogle: string): Promise<string
     const res = await fetch('/api/auth/google/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: idTokenFromGoogle })
+        body: JSON.stringify({ token: idTokenFromGoogle })
     });
 
     const payload = await res.json();
