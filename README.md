@@ -13,6 +13,12 @@ FIREBASE
 - Click the Add domain button.
 - Enter localhost in the dialog box and click Add.
    After adding localhost to the list, the Firebase SDK running on your local machine will be recognized, and the authentication flow should proceed without this error. It might take a minute or two for the setting to take effect.
+--details on where to find this elusive setting:
+  - Once you are in the Authentication section, you may have to click "get started" to get the next steps to appear
+  -  you will see tabs across the top for Users, Sign-in method, and Settings. Click on Settings.
+  -  In the Settings page, click on the Authorized domains tab.
+  - Click the blue Add domain button.
+  - Type localhost and click Add.
 
 
 
