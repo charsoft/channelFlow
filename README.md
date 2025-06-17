@@ -167,5 +167,91 @@ You can monitor the build and deployment progress in the Google Cloud Console un
 
 ------------------
 
+TROUBLE WITH IAM?
+
+----------------------
+```markdown
+# IAM Permissions Utility Scripts
+
+This directory contains utility scripts to help diagnose and resolve common IAM permission issues when setting up and deploying the ChannelFlow application on Google Cloud.
+
+Prequisites
+
+Before using these scripts, you must have the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) installed and authenticated. The scripts are designed to be run in a bash environment, such as the Google Cloud Shell.
+
+To use these scripts in Cloud Shell:
+1. Upload the necessary scripts to your Cloud Shell environment.
+2. Make them executable. For example: `chmod +x create_custom_role.sh`
+
+---
+
+### 1. `create_custom_role.sh`
+
+This script creates a custom IAM role required by the application's service account to access specific Storage APIs. This is a necessary first step.
+
+**Usage:**
+```bash
+./create_custom_role.sh [PROJECT_ID]
+```
+
+**Example:**
+```bash
+./create_custom_role.sh my-gcp-project
+```
+
+---
+
+### 2. `grant_cloud_run_sa_roles.sh`
+
+The application runs in Cloud Run using a specific service account. This script grants all the necessary permissions for that service account to function correctly, including access to Datastore, Secret Manager, and the custom Storage role.
+
+**Usage:**
+```bash
+./grant_cloud_run_sa_roles.sh [PROJECT_ID] [SERVICE_ACCOUNT_EMAIL]
+```
+
+**Example:**
+```bash
+# Replace with the email of the service account used by your Cloud Run service
+./grant_cloud_run_sa_roles.sh my-gcp-project channel-flow-svc-sa@my-gcp-project.iam.gserviceaccount.com
+```
+
+---
+
+### 3. `grant_cloud_deployer_roles.sh`
+
+The CI/CD pipeline uses a dedicated service account to deploy the application. This script grants that account the permissions it needs to manage deployments, access Artifact Registry, and more.
+
+**Usage:**
+```bash
+./grant_cloud_deployer_roles.sh [PROJECT_ID] [SERVICE_ACCOUNT_EMAIL]
+```
+
+**Example:**
+```bash
+# Replace with the email of the service account used by Cloud Deploy
+./grant_cloud_deployer_roles.sh my-gcp-project my-deployer-sa@my-gcp-project.iam.gserviceaccount.com
+```
+
+---
+
+### 4. `check_permissions.sh`
+
+If you are still facing permissions issues, this script can be used as a general-purpose tool to inspect the roles assigned to any user or service account on the project.
+
+**Usage:**
+```bash
+./check_permissions.sh [PROJECT_ID] [MEMBER_EMAIL]
+```
+
+**Example:**
+```bash
+# Check a service account
+./check_permissions.sh my-gcp-project my-sa@my-gcp-project.iam.gserviceaccount.com
+
+# Check a user
+./check_permissions.sh my-gcp-project user@example.com
+```
+```
  -----
 
