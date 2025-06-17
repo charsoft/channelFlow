@@ -66,7 +66,7 @@ video_cache = {}
 
 @app.on_event("shutdown")
 def shutdown_event():
-    """
+    """  
     On shutdown, clean up any temporary video cache directories.
     """
     print("Application shutting down. Cleaning up video cache...")
