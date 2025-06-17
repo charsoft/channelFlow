@@ -1,7 +1,7 @@
 import asyncio
 import os
 from datetime import datetime
-from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
+from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, Header
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
@@ -39,10 +39,13 @@ load_dotenv()
 
 app = FastAPI()
 
+# Get the frontend URL from environment variables, with a default for local dev
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, you should restrict this to your Firebase Hosting domain
+    allow_origins=[FRONTEND_URL],  # Explicitly allow the frontend origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -194,16 +197,27 @@ async def startup_event():
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-async def verify_token(token: str = Depends(oauth2_scheme)):
+async def verify_token(authorization: str = Header(None)):
     """
-    FastAPI dependency to verify Firebase ID token.
+    FastAPI dependency to verify Firebase ID token from the Authorization header.
     """
-    if not token:
+    if not authorization:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authentication token",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Missing Authorization header",
         )
+    
+    parts = authorization.split()
+    
+    if parts[0].lower() != "bearer":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header must start with Bearer")
+    elif len(parts) == 1:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token not found")
+    elif len(parts) > 2:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header must be Bearer token")
+        
+    token = parts[1]
+    
     try:
         # Verify the token against the Firebase Auth API.
         decoded_token = auth.verify_id_token(token)

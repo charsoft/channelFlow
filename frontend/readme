@@ -1,0 +1,15 @@
+refactored.
+src/
+├─ lib/
+│  ├─ auth.ts         # Firebase init  + signIn/signOut helpers
+│  ├─ api.ts          # ingest + SSE logic
+│  └─ stores.ts       # Svelte stores for user/idToken, videos, status
+│
+├─ components/
+│  ├─ AuthButton.svelte
+│  ├─ IngestForm.svelte
+│  ├─ StatusLog.svelte
+│  ├─ Workflow.svelte
+│  └─ PreviousVideos.svelte
+│
+└─ App.svelte         # now just glues the components together
