@@ -44,5 +44,4 @@ variable "run_service_name" {
 variable "github_repository_url" {
   type        = string
   description = "URL of connected GitHub repository (https://github.com/repo_owner/repo_name)"
-  
 }

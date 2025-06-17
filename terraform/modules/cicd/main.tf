@@ -15,7 +15,7 @@ variable "time_sleep" {
 }
 
 locals {
-  repository_name        = split("/", replace(var.github_repository_url, "/(.*github.com/)/", ""))[1]
+  repository_name        = replace(split("/", replace(var.github_repository_url, "/(.*github.com/)/", ""))[1], ".git", "")
   repository_owner       = split("/", replace(var.github_repository_url, "/(.*github.com/)/", ""))[0]
   artifact_registry_repo = "${var.run_service_location}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.default.name}"
   github_repository_url  = replace(var.github_repository_url, "/(.*github.com)/", "https://github.com")
@@ -24,7 +24,6 @@ locals {
   skaffold_config        = templatefile("${path.module}/cloudbuild/skaffold.yaml.tftpl", { name = var.run_service_name })
   run_config = templatefile("${path.module}/cloudbuild/app-prod.yaml.tftpl",
     { run_service_name    = var.run_service_name
-      lb_ip_address       = google_compute_global_address.default.address
       project_id          = var.project_id
       run_service_account = var.run_service_account_email
     }
@@ -40,11 +39,6 @@ data "google_cloud_run_service" "default" {
 
 data "google_service_account" "cloud_run" {
   account_id = var.run_service_account_email
-}
-
-resource "google_compute_global_address" "default" {
-  project = var.project_id
-  name    = "${var.run_service_name}-reserved-ip"
 }
 
 # Create Artifact Registry and the gcr Pub/Sub topic
@@ -104,6 +98,7 @@ resource "google_project_iam_member" "builder_run_developer" {
 
 resource "google_cloudbuild_trigger" "app_new_build" {
   project         = var.project_id
+  location        = var.region
   name            = "channel-flow-app-build"
   description     = "Initiates new build of ${var.run_service_name}. Triggers by changes to app on main branch of source repo."
   service_account = google_service_account.cloud_build.id

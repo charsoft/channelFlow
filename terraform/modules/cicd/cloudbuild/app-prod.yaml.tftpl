@@ -8,8 +8,6 @@ spec:
       containers:
       - image: app-image
         env:
-        - name: NEXTAUTH_URL
-          value: http://${lb_ip_address}
         - name: PROJECT_ID
           value:  ${project_id}
         - name: NEXTAUTH_SECRET
