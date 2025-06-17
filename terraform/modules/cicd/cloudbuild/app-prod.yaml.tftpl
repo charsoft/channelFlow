@@ -5,14 +5,69 @@ metadata:
 spec:
   template:
     spec:
+      serviceAccountName: ${run_service_account}
+      volumes:
+      - name: youtube-api-key-volume
+        secret:
+          secretName: youtube-api-key
+      - name: target-channel-id-volume
+        secret:
+          secretName: target-channel-id
+      - name: gemini-api-key-volume
+        secret:
+          secretName: gemini-api-key
       containers:
       - image: app-image
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: youtube-api-key-volume
+          mountPath: "/etc/secrets/youtube"
+          readOnly: true
+        - name: target-channel-id-volume
+          mountPath: "/etc/secrets/channel"
+          readOnly: true
+        - name: gemini-api-key-volume
+          mountPath: "/etc/secrets/gemini"
+          readOnly: true
         env:
-        - name: PROJECT_ID
-          value:  ${project_id}
-        - name: NEXTAUTH_SECRET
+        - name: GOOGLE_CLOUD_PROJECT
+          value: ${project_id}
+        - name: GCS_BUCKET_NAME
+          value: ${gcs_bucket_name}
+        - name: GCP_REGION
+          value: ${gcp_region}
+        - name: GEMINI_MODEL_NAME
+          value: ${gemini_model_name}
+        - name: IMAGEN_MODEL_NAME
+          value: ${imagen_model_name}
+        - name: GEMINI_API_KEY
           valueFrom:
             secretKeyRef:
+              name: gemini-api-key
               key: latest
-              name: ${run_service_name}-nextauth-secret
-      serviceAccountName: ${run_service_account}
+        - name: YOUTUBE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: youtube-api-key
+              key: latest
+        - name: TARGET_CHANNEL_ID
+          valueFrom:
+            secretKeyRef:
+              name: target-channel-id
+              key: latest
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ${app_secret_id}
+              key: latest
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: ${client_id_secret_id}
+              key: latest
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: ${client_secret_secret_id}
+              key: latest

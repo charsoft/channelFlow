@@ -26,6 +26,13 @@ locals {
     { run_service_name    = var.run_service_name
       project_id          = var.project_id
       run_service_account = var.run_service_account_email
+      gcs_bucket_name     = var.gcs_bucket_name
+      gcp_region          = var.region
+      gemini_model_name   = var.gemini_model_name
+      imagen_model_name   = var.imagen_model_name
+      app_secret_id       = var.app_secret_id
+      client_id_secret_id = var.client_id_secret_id
+      client_secret_secret_id = var.client_secret_secret_id
     }
   )
 }

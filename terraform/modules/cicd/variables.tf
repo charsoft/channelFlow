@@ -45,3 +45,33 @@ variable "github_repository_url" {
   type        = string
   description = "URL of connected GitHub repository (https://github.com/repo_owner/repo_name)"
 }
+
+variable "gcs_bucket_name" {
+  type        = string
+  description = "The name of the GCS bucket for public assets."
+}
+
+variable "gemini_model_name" {
+  type        = string
+  description = "The name of the Gemini model to use."
+}
+
+variable "imagen_model_name" {
+  type        = string
+  description = "The name of the Imagen model to use."
+}
+
+variable "app_secret_id" {
+  type        = string
+  description = "The ID of the application's secret key."
+}
+
+variable "client_id_secret_id" {
+  type        = string
+  description = "The ID of the Google Client ID secret."
+}
+
+variable "client_secret_secret_id" {
+  type        = string
+  description = "The ID of the Google Client Secret secret."
+}
