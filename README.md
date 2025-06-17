@@ -48,7 +48,7 @@ Create a Google Cloud project
 
  -----
 Create an artifact repo: 
-gcloud artifacts repositories create channelflow-api-repo --project=<YOUR-PROJECT-ID-HERE> --repository-format=docker --location=us-central1 --description="ChannelFlow API Docker repository"n
+gcloud artifacts repositories create channelflow-api-repo --project=<<YOUR-PROJECT-ID-HERE>> --repository-format=docker --location=us-central1 --description="ChannelFlow API Docker repository"n
 Create the docker container, and push to your repo
   - cd to the root of the repo first
   - docker build -t channelflow:latest .
