@@ -52,8 +52,8 @@ gcloud artifacts repositories create channelflow-api-repo --project=<YOUR-PROJEC
 Create the docker container, and push to your repo
   - cd to the root of the repo first
   - docker build -t channelflow:latest .
-  - docker tag channelflow:latest us-central1-docker.pkg.dev/channelflow/channelflow-api-repo/channelflow:latest
-  - docker push us-central1-docker.pkg.dev/channelflow/channelflow-api-repo/channelflow:latest
+  - docker tag channelflow:latest us-central1-docker.pkg.dev/<YOUR-PROJECT-ID-HERE>/channelflow-api-repo/channelflow:latest
+  - docker push us-central1-docker.pkg.dev/<YOUR-PROJECT-ID-HERE>/channelflow-api-repo/channelflow:latest
   - (if not using terraform... and you won't every time, go to cloud run and redeploy because we haven't automated it yet) 
  - Run the Terraform files ()
  	- copy terraform-example.tfvars --> terraform.tfvars
