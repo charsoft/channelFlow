@@ -39,25 +39,8 @@ class IngestionAgent:
     def __init__(self, api_key: str, channel_id: str = None):
         self.api_key = api_key
         self.channel_id = channel_id
-        self.state_file = 'processed_videos.pkl'
-        self.processed_video_ids = self._load_state()
         self.youtube = build('youtube', 'v3', developerKey=self.api_key)
         event_bus.subscribe(NewVideoDetected, self.handle_new_video)
-
-    def _load_state(self):
-        """Loads the set of already processed video IDs."""
-        if os.path.exists(self.state_file):
-            with open(self.state_file, 'rb') as f:
-                try:
-                    return pickle.load(f)
-                except (pickle.UnpicklingError, EOFError):
-                    return set()
-        return set()
-
-    def _save_state(self):
-        """Saves the current set of processed video IDs."""
-        with open(self.state_file, 'wb') as f:
-            pickle.dump(self.processed_video_ids, f)
 
     async def process_single_video(self, video_url: str):
         """Processes a single video URL provided on demand."""
@@ -68,8 +51,10 @@ class IngestionAgent:
             print(f"🕵️ IngestionAgent: ❌ Could not extract video ID from URL: {video_url}")
             return
             
-        if video_id in self.processed_video_ids:
-            print(f"🕵️ IngestionAgent: ⚪️ Video ID '{video_id}' already processed. Skipping.")
+        video_doc_ref = db.collection("videos").document(video_id)
+        doc = await video_doc_ref.get()
+        if doc.exists:
+            print(f"🕵️ IngestionAgent: ⚪️ Video ID '{video_id}' already exists in Firestore. Skipping.")
             return
 
         try:
@@ -88,7 +73,6 @@ class IngestionAgent:
             print(f"🕵️ IngestionAgent: ✅ Found video: '{video_title}'")
 
             # Create the initial document in Firestore
-            video_doc_ref = db.collection("videos").document(video_id)
             await video_doc_ref.set({
                 "video_id": video_id,
                 "video_title": video_title,
@@ -104,9 +88,6 @@ class IngestionAgent:
             )
             await event_bus.publish(new_video_event)
             
-            self.processed_video_ids.add(video_id)
-            self._save_state()
-
         except Exception as e:
             print(f"🕵️ IngestionAgent: ❌ An error occurred while fetching video details: {e}")
 
@@ -129,14 +110,15 @@ class IngestionAgent:
                     video_id = item["id"]["videoId"]
                     video_title = item["snippet"]["title"]
                     
-                    if video_id not in self.processed_video_ids:
+                    video_doc_ref = db.collection("videos").document(video_id)
+                    doc = await video_doc_ref.get()
+                    if not doc.exists:
                         print(f"🕵️ IngestionAgent: ✅ New video found: '{video_title}'")
                         print("   (Processing only the single most recent new video for this cycle)")
                         
                         video_url = f"https://www.youtube.com/watch?v={video_id}"
                         
                         # Create the initial document in Firestore
-                        video_doc_ref = db.collection("videos").document(video_id)
                         await video_doc_ref.set({
                             "video_id": video_id,
                             "video_title": video_title,
@@ -152,8 +134,6 @@ class IngestionAgent:
                         )
                         await event_bus.publish(new_video_event)
                         
-                        self.processed_video_ids.add(video_id)
-                        self._save_state()
                         # Stop after processing the first new video to avoid flooding.
                         break
                     else:

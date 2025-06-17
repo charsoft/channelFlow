@@ -148,7 +148,16 @@ async def startup_event():
         return
         
     # Create and store a single IngestionAgent instance
-    app.state.ingestion_agent = IngestionAgent(api_key=api_key, channel_id=channel_id)
+    try:
+        print("Attempting to initialize IngestionAgent...")
+        app.state.ingestion_agent = IngestionAgent(api_key=api_key, channel_id=channel_id)
+        print("✅ IngestionAgent initialized successfully.")
+    except Exception as e:
+        print("🚨🚨🚨 FAILED TO INITIALIZE INGESTION AGENT 🚨🚨🚨")
+        print(f"The error was: {e}")
+        import traceback
+        traceback.print_exc()
+        app.state.ingestion_agent = None
 
     # Check if auto-ingestion is enabled via environment variable
     enable_auto_ingestion = os.getenv("ENABLE_AUTO_INGESTION", "false").lower() == "true"

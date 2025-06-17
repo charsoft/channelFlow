@@ -14,6 +14,7 @@ const connectYouTubeButton = document.getElementById('connectYouTubeButton');
 let currentVideoId = null;
 let eventSource = null; // To hold the EventSource connection
 let isResumableWorkflow = false; // Flag to maintain the "resume" UI state
+let tokenClient; // Will be initialized after the config is fetched
 
 urlInput.addEventListener('input', () => {
     // Enable button only if there is text in the input field
@@ -76,35 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
         'access_type': 'offline',
         'prompt': 'consent'
     });
-
-    // Google Identity Services (GIS) for getting auth code
-    let tokenClient;
-
-    function initializeGis(clientId) {
-        if (!clientId || clientId.startsWith("YOUR")) {
-            console.error("Google Client ID is not configured.");
-            // This will be caught by the app initialization block
-            return;
-        }
-        tokenClient = google.accounts.oauth2.initCodeClient({
-            client_id: clientId,
-            scope: 'https://www.googleapis.com/auth/youtube.readonly',
-            callback: (response) => {
-                if (response.code) {
-                    console.log("GIS Auth Code received:", response.code);
-                    exchangeAuthCode(response.code);
-                } else {
-                    console.error("GIS response did not contain auth code.", response);
-                    Swal.fire('Authorization Failed', 'Could not get authorization from Google.', 'error');
-                }
-            },
-        });
-    }
-
-    // Wait for Google Identity Services to load - This is handled by the async init now
-    // window.onload = () => {
-    //     initializeGis();
-    // };
 
     loginButton.addEventListener('click', () => {
         auth.signInWithPopup(provider)
@@ -589,4 +561,25 @@ async function exchangeAuthCode(code) {
         console.error("Failed to exchange auth code:", error);
         Swal.fire('Connection Failed', error.toString(), 'error');
     }
+}
+
+function initializeGis(clientId) {
+    if (!clientId || clientId.startsWith("YOUR")) {
+        console.error("Google Client ID is not configured.");
+        // This will be caught by the app initialization block
+        return;
+    }
+    tokenClient = google.accounts.oauth2.initCodeClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/youtube.readonly',
+        callback: (response) => {
+            if (response.code) {
+                console.log("GIS Auth Code received:", response.code);
+                exchangeAuthCode(response.code);
+            } else {
+                console.error("GIS response did not contain auth code.", response);
+                Swal.fire('Authorization Failed', 'Could not get authorization from Google.', 'error');
+            }
+        },
+    });
 } 
