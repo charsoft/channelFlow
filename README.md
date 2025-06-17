@@ -1,44 +1,32 @@
 # channelFlow
 Hackathon entry!
 
-Running it locally:
-
-FIREBASE
----------
-- Go to your Firebase Console: https://console.firebase.google.com/
-- Select the correct project (the one matching your .env file keys).
-- In the left-hand navigation menu, go to the Authentication section.
-- Click on the Settings tab (near the top of the page, next to "Users").
-- Select the Authorized domains sub-tab.
-- Click the Add domain button.
-- Enter localhost in the dialog box and click Add.
-   After adding localhost to the list, the Firebase SDK running on your local machine will be recognized, and the authentication flow should proceed without this error. It might take a minute or two for the setting to take effect.
---details on where to find this elusive setting:
-  - Once you are in the Authentication section, you may have to click "get started" to get the next steps to appear
-  -  you will see tabs across the top for Users, Sign-in method, and Settings. Click on Settings.
-  -  In the Settings page, click on the Authorized domains tab.
-  - Click the blue Add domain button.
-  - Type localhost and click Add.
-
-How to Enable Google Sign-in Provider
-- Go to your Firebase Console: https://console.firebase.google.com/
-- Select your project.
-- Navigate to the Authentication section (using the "Build" menu on the left).
-- Click on the Sign-in method tab (next to "Users" and "Settings").
-- You will see a list of "Sign-in providers". Click on Google from this list.
-- A new panel will slide out.
-- Click the Enable toggle switch to turn it on.
-- A Project support email dropdown will appear. Select your email address from the list.
-- Click the Save button.
-- Once you enable this, you are explicitly telling your Firebase project that it is allowed to use Google accounts for authentication. After saving, wait about a minute for the setting to take effect, then try logging in again. This should resolve the error.
+Running it Locally:
+You still have to set up the OAuth 2.0 client in your GCP project, since this app requires users to authentication with Google Cloud.
 
 
 
+Setting it up in GCP
 
-Running it in GCP
 How to set up:
 - Create a Google Cloud project
 - Manually create the OAuth Client ID and Secret in GCP Console
+	- under APIs & Services, click "Credentials"
+	- click "Configure Consent Screen", then "Get Started"
+ 	- enter the app name (whatever you want), your email address, etc.
+  	- choose Internal (testing only)
+  	- click Finish
+  - Now click "Create OAuth Client"
+  	- Application Type: Web Application
+   	- Name it (internally)
+    	- add authorized Javascript Origins
+     		- http://localhost:5173  -- for the local frontend 
+       		- http://localhost:8000  -- for the local backend
+         - click create (we will come back here and add the official frontends when we deploy to cloud run)
+  - Copy the Google_Client_Id, paste it in the .env.local and the .env files on the project root
+  - Copy the Goole_Client_Secret, paste it in the environment variables as well
+  - Paste both values in the terraform.tfvars relative environment fields
+  - 
 Configure Google OAuth Client: In your Google Cloud Console, under "APIs & Services" -> "Credentials", make sure the OAuth 2.0 Client ID you're using is configured as a "Web application" and, critically, that you've added http://localhost:8000 (for local testing) and your deployed application's URL to the "Authorized JavaScript origins". The redirect_uri is handled by the new Google Identity Services library and doesn't need to be configured for this flow.
 - Copy the clientID and Client Secret. Put the values in the terraform.tfvars file.
  
