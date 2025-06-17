@@ -4,12 +4,16 @@
   import StatusLog       from './components/StatusLog.svelte';
   import Workflow        from './components/Workflow.svelte';
   import PreviousVideos  from './components/PreviousVideos.svelte';
- import ConnectYouTubeButton from './components/ConnectYouTubeButton.svelte';
-  let needYouTube = false;
+  import ConnectYouTubeButton from './components/ConnectYouTubeButton.svelte';
+  import { accessToken } from './lib/auth';
 
   let currentVideoId: string | null = null;
   let activeAgent: string = '';
   let showLog: boolean = false;
+  
+  // A simple check to see if the user has connected YouTube.
+  // In a real app, this would be a more robust check against the backend.
+  let isYouTubeConnected = false; 
 
   function handleStarted(e: CustomEvent) {
     currentVideoId = e.detail.videoId;
@@ -19,11 +23,9 @@
   function handleView(e: CustomEvent) {
     window.location.href = `/video/${e.detail.videoId}`;
   }
-    function onRequireYouTube() {
-    needYouTube = true;
-  }
+
   function onYouTubeConnected() {
-    needYouTube = false;
+    isYouTubeConnected = true;
   }
 </script>
 
@@ -62,12 +64,14 @@
       multi-platform marketing campaign, orchestrated by autonomous AI agents.
     </p>
 
-  {#if needYouTube}
-    <ConnectYouTubeButton onConnected={onYouTubeConnected} />
-  {/if}
+    {#if $accessToken && !isYouTubeConnected}
+      <div class="youtube-connect-prompt">
+        <p>To get started, connect your YouTube account.</p>
+        <ConnectYouTubeButton onConnected={onYouTubeConnected} />
+      </div>
+    {/if}
 
-
-    <IngestForm on:started={handleStarted} on:view={handleView} on:requireYouTube={onRequireYouTube} />
+    <IngestForm on:started={handleStarted} on:view={handleView} />
 
     {#if showLog}
       <StatusLog {currentVideoId} />
@@ -80,5 +84,7 @@
   </div>
 
   <!-- Previously processed videos -->
-  <PreviousVideos />
+  {#if $accessToken}
+    <PreviousVideos />
+  {/if}
 </div>

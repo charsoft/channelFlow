@@ -2,60 +2,65 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { listenForUpdates } from '../lib/api';
-  import { idToken } from '../lib/auth';
-  import { get } from 'svelte/store';
 
   export let currentVideoId: string;
 
-  // Holds each status update from the server
-  let statusMessages: Array<{ stage: string; status: string; message: string }> = [];
+  let statusHistory: any[] = [];
+  let es: EventSource | null = null;
+  let errorState = false;
 
-  let eventSource: EventSource | null = null;
+  onMount(() => {
+    if (!currentVideoId) return;
+    
+    statusHistory = []; // Clear previous history
+    errorState = false;
 
-  // Subscribe to SSE when videoId changes
-  $: if (currentVideoId) {
-    // clean up any previous connection
-    if (eventSource) {
-      eventSource.close();
-    }
-    statusMessages = [];
-    const token = get(idToken);
-    eventSource = listenForUpdates(
+    es = listenForUpdates(
       currentVideoId,
-      token,
       (data) => {
-        // append each incoming message
-        statusMessages = [...statusMessages, data];
+        statusHistory = [...statusHistory, data];
+        // Auto-scroll logic can be added here if needed
       },
       () => {
-        // on error / disconnect
-        statusMessages = [
-          ...statusMessages,
-          { stage: 'System', status: 'error', message: 'Connection lost.' }
-        ];
-        eventSource?.close();
+        errorState = true;
       }
     );
+
+    return () => {
+      if (es) {
+        es.close();
+      }
+    };
+  });
+
+  // When the video ID changes, re-establish the connection
+  $: if (currentVideoId && es) {
+    es.close();
+    onMount(); // Rerun mount logic
   }
 
   onDestroy(() => {
-    eventSource?.close();
+    if (es) {
+      es.close();
+    }
   });
 </script>
 
-<section class="status-section p-4 bg-gray-50 rounded-lg shadow-sm">
-  <h3 class="text-lg font-semibold mb-2">Live Status Updates</h3>
-  {#if statusMessages.length === 0}
-    <p class="text-sm text-gray-500">Waiting for updates…</p>
+<div class="status-log-container">
+  <h4>Processing Log for {currentVideoId}</h4>
+  {#if errorState}
+    <p class="error">Connection to server lost. Please refresh.</p>
+  {:else if statusHistory.length === 0}
+    <p>Waiting for processing to start...</p>
   {:else}
-    <ul class="space-y-1 max-h-64 overflow-y-auto text-sm font-mono">
-      {#each statusMessages as { stage, status, message }, i}
+    <ul>
+      {#each statusHistory as status}
         <li>
-          <span class="font-semibold">[{stage}]</span>
-          <span class="text-{status === 'error' ? 'red' : 'green'}-600">{status.toUpperCase()}</span>:
-          {message}
+          <strong>{new Date(status.timestamp).toLocaleTimeString()}:</strong>
+          Stage <em>{status.stage}</em> updated to <strong>{status.status}</strong>
+          - {status.message}
         </li>
       {/each}
     </ul>
   {/if}
-</section>
+</div>

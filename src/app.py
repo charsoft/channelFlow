@@ -33,6 +33,12 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from .security import encrypt_data, decrypt_data
 from fastapi.staticfiles import StaticFiles
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from src.auth.authentication import create_access_token
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordRequestForm
+from jose import JWTError, jwt
 
 # Load environment variables from .env file
 load_dotenv()
@@ -45,7 +51,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL],  # Explicitly allow the frontend origin
+    allow_origins=[FRONTEND_URL, "https://accounts.google.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -86,10 +92,10 @@ class AuthCodeRequest(BaseModel):
     code: str
 
 class ClientConfig(BaseModel):
-    firebase_api_key: str
-    firebase_auth_domain: str
-    firebase_project_id: str
     google_client_id: str
+
+class GoogleLoginRequest(BaseModel):
+    token: str # This is the Google ID token
 
 @app.on_event("startup")
 async def startup_event():
@@ -195,44 +201,77 @@ async def startup_event():
     
     print("All agents have been initialized.")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/google/login")
 
-async def verify_token(authorization: str = Header(None)):
+async def get_current_user(token: str = Depends(oauth2_scheme)):
     """
-    FastAPI dependency to verify Firebase ID token from the Authorization header.
+    Decodes the JWT token to get the current user's ID.
+    This function will be used as a dependency for protected endpoints.
     """
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization header",
-        )
-    
-    parts = authorization.split()
-    
-    if parts[0].lower() != "bearer":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header must start with Bearer")
-    elif len(parts) == 1:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token not found")
-    elif len(parts) > 2:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header must be Bearer token")
-        
-    token = parts[1]
-    
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     try:
-        # Verify the token against the Firebase Auth API.
-        decoded_token = auth.verify_id_token(token)
-        return decoded_token
-    except auth.InvalidIdTokenError:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    # You could fetch the user document from Firestore here if needed,
+    # but for now, just returning the ID is sufficient.
+    return {"uid": user_id}
+
+@app.post("/api/auth/google/login")
+async def google_login(request: GoogleLoginRequest):
+    """
+    Handles Google Sign-In. Verifies Google token, finds or creates a user,
+    and returns an internal access token.
+    """
+    try:
+        # Verify the ID token with Google
+        idinfo = id_token.verify_oauth2_token(
+            request.token,
+            google_requests.Request(),
+            os.getenv("GOOGLE_CLIENT_ID")
+        )
+
+        user_id = idinfo['sub']
+        user_email = idinfo.get('email')
+        user_name = idinfo.get('name')
+
+        # Check if user exists in our database
+        user_doc_ref = db.collection('users').document(user_id)
+        user_doc = await user_doc_ref.get()
+
+        if not user_doc.exists:
+            # Create new user
+            await user_doc_ref.set({
+                'email': user_email,
+                'name': user_name,
+                'created_at': datetime.utcnow()
+            })
+
+        # Create our own internal access token
+        access_token = create_access_token(data={"sub": user_id})
+
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    except ValueError as e:
+        # Invalid token
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
+            detail=f"Invalid Google token: {e}",
             headers={"WWW-Authenticate": "Bearer"},
         )
     except Exception as e:
-        print(f"Error verifying token: {e}")
+        print(f"Error during Google login: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error while verifying token",
+            detail="An unexpected error occurred during login."
         )
 
 @app.get("/api/config", response_model=ClientConfig)
@@ -247,18 +286,16 @@ async def get_client_config():
         raise ValueError("GOOGLE_CLIENT_ID is not set in the environment.")
 
     return ClientConfig(
-        firebase_api_key=os.getenv("FIREBASE_API_KEY"),
-        firebase_auth_domain=os.getenv("FIREBASE_AUTH_DOMAIN"),
-        firebase_project_id=os.getenv("FIREBASE_PROJECT_ID"),
         google_client_id=client_id
     )
 
 @app.post("/api/oauth/exchange-code")
-async def exchange_code(request: AuthCodeRequest, decoded_token: dict = Depends(verify_token)):
+async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(get_current_user)):
     """
     Exchanges a Google OAuth authorization code for credentials and stores them securely.
+    Requires our internal JWT authentication.
     """
-    user_id = decoded_token.get("uid")
+    user_id = current_user.get("uid")
     
     try:
         client_id = os.getenv("GOOGLE_CLIENT_ID")
@@ -305,13 +342,13 @@ async def exchange_code(request: AuthCodeRequest, decoded_token: dict = Depends(
         )
 
 @app.post("/api/ingest-url")
-async def ingest_url(request: IngestUrlRequest, decoded_token: dict = Depends(verify_token)):
+async def ingest_url(request: IngestUrlRequest, current_user: dict = Depends(get_current_user)):
     """
     API endpoint to manually trigger ingestion. Uses the user's credentials.
-    Requires authentication.
+    Requires our internal JWT authentication.
     """
     try:
-        user_id = decoded_token.get("uid")
+        user_id = current_user.get("uid")
         print(f"Request received from authenticated user: {user_id}")
 
         # --- Get User's YouTube Credentials ---
@@ -675,6 +712,10 @@ async def regenerate_prompts(request: RegeneratePromptsRequest):
 async def get_all_videos():
     """
     API endpoint to fetch all video documents from Firestore.
+    TODO: This currently returns all videos. For a multi-tenant app, this
+          should be updated to only return videos belonging to the
+          currently authenticated user. This would require saving the user_id
+          on the video document during ingestion.
     """
     videos = []
     try:
@@ -1000,6 +1041,9 @@ async def ingest_video(request: IngestRequest):
         print(f"Error in /ingest: {e}\n{traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"message": "An internal error occurred."})
 
+# --- Static File Serving ---
 # This must be the LAST app mount. If it's before the API routes,
-# it can hijack paths like /api/config and try to serve them as files.
-app.mount("/", StaticFiles(directory="src/static", html=True), name="static") 
+# it can hijack paths like /api/* and try to serve them as files.
+# It points to the 'dist' directory inside the 'frontend' folder, which is
+# created by running `npm run build` in the 'frontend' directory.
+app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static-frontend") 

@@ -1,32 +1,47 @@
-# 1. Use an official Python runtime as a parent image
-# We use -slim-bookworm as it's a small, stable Debian-based image
+# Stage 1: Build the Svelte frontend
+FROM node:18-slim AS builder
+
+# Set the working directory for the frontend
+WORKDIR /app/frontend
+
+# Copy package.json and package-lock.json first to leverage Docker caching
+COPY frontend/package*.json ./
+RUN npm install
+
+# Copy the rest of the frontend source code
+COPY frontend/ ./
+
+# Build the frontend application
+RUN npm run build
+
+
+# Stage 2: Build the Python backend
 FROM python:3.11-slim-bookworm
 
-# 2. Set environment variables
-# Prevents Python from writing pyc files to disc
+# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
-# Ensures Python output is sent straight to the terminal without buffering
 ENV PYTHONUNBUFFERED 1
 
-# 3. Install dependencies
-# -y flag automatically answers yes to prompts
-# --no-install-recommends avoids installing unnecessary packages
-# We clean up the apt-get cache to keep the final image small
+# Install system dependencies (e.g., ffmpeg, git)
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg git && \
     rm -rf /var/lib/apt/lists/*
 
-# 4. Set the working directory in the container
+# Set the working directory for the application
 WORKDIR /app
 
-# 5. Copy and install Python dependencies
-# Copying requirements first leverages Docker layer caching
-COPY ./requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
+# Copy Python dependencies and install them
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
-# 6. Copy the application source code into the container
-COPY ./src /app/src
+# Copy the Python source code
+COPY src/ ./src/
 
-# 7. Command to run the application
-# Use 0.0.0.0 to make the app accessible from outside the container
-# Cloud Run automatically provides the PORT environment variable, defaulting to 8080
+# Copy the built frontend from the builder stage
+COPY --from=builder /app/frontend/dist ./frontend/dist
+
+# Expose the port the app will run on
+EXPOSE 8080
+
+# Command to run the application
+# Cloud Run automatically provides the PORT environment variable
 CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8080"] 

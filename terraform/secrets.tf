@@ -62,47 +62,6 @@ resource "google_secret_manager_secret_version" "google_client_secret_secret_ver
   secret_data = var.google_client_secret
 }
 
-# --- Firebase Web App Config Secrets ---
-
-resource "google_secret_manager_secret" "firebase_api_key_secret" {
-  secret_id = "channelflow-firebase-api-key"
-  project   = var.project_id
-  replication {
-    auto {}
-  }
-}
-
-resource "google_secret_manager_secret_version" "firebase_api_key_secret_version" {
-  secret      = google_secret_manager_secret.firebase_api_key_secret.id
-  secret_data = var.firebase_api_key
-}
-
-resource "google_secret_manager_secret" "firebase_auth_domain_secret" {
-  secret_id = "channelflow-firebase-auth-domain"
-  project   = var.project_id
-  replication {
-    auto {}
-  }
-}
-
-resource "google_secret_manager_secret_version" "firebase_auth_domain_secret_version" {
-  secret      = google_secret_manager_secret.firebase_auth_domain_secret.id
-  secret_data = var.firebase_auth_domain
-}
-
-resource "google_secret_manager_secret" "firebase_project_id_secret" {
-  secret_id = "channelflow-firebase-project-id"
-  project   = var.project_id
-  replication {
-    auto {}
-  }
-}
-
-resource "google_secret_manager_secret_version" "firebase_project_id_secret_version" {
-  secret      = google_secret_manager_secret.firebase_project_id_secret.id
-  secret_data = var.firebase_project_id
-}
-
 # --- Secrets from main.tf ---
 
 # YouTube API Key Secret

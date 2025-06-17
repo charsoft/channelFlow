@@ -15,7 +15,7 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "channelflow-test-deploy-tfstate"
+    bucket = "channel-flow-2-tf-storage-0617"
     prefix = "terraform/state"
   }
 }
@@ -34,9 +34,6 @@ provider "google-beta" {
   billing_project       = var.project_id
 }
 
-resource "google_project_service" "firestore" {
-  service = "firestore.googleapis.com"
-}
 
 resource "google_project_service" "iam" {
   project = var.project_id
@@ -66,11 +63,7 @@ resource "google_service_account" "api_service_account" {
   display_name = "ChannelFlow API Service Account"
 }
 
-resource "google_project_iam_member" "api_service_account_firestore_access" {
-  project = var.project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${google_service_account.api_service_account.email}"
-}
+
 
 # --- API Keys ---
 
@@ -166,7 +159,7 @@ resource "google_cloud_run_v2_service" "api_service" {
     }
 
     containers {
-      image = "us-central1-docker.pkg.dev/${var.project_id}/channelflow-test-deploy-api-repo/channelflow:latest"
+      image = "us-central1-docker.pkg.dev/${var.project_id}/channelflow-api-repo/channelflow:latest"
 
       volume_mounts {
         name       = "youtube-api-key-volume"
@@ -264,33 +257,9 @@ resource "google_cloud_run_v2_service" "api_service" {
           }
         }
       }
-      env {
-        name = "FIREBASE_API_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.firebase_api_key_secret.secret_id
-            version = "latest"
-          }
-        }
-      }
-      env {
-        name = "FIREBASE_AUTH_DOMAIN"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.firebase_auth_domain_secret.secret_id
-            version = "latest"
-          }
-        }
-      }
-      env {
-        name = "FIREBASE_PROJECT_ID"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.firebase_project_id_secret.secret_id
-            version = "latest"
-          }
-        }
-      }
+      
+      
+     
     }
   }
 

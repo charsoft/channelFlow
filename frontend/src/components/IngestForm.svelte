@@ -2,7 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import Swal from 'sweetalert2';
   import { get } from 'svelte/store';
-  import { idToken } from '../lib/auth';
+  import { accessToken } from '../lib/auth';
   import { checkVideo, sendIngest } from '../lib/api';
 
   const dispatch = createEventDispatcher();
@@ -14,11 +14,11 @@
     try {
       // 1) Basic guards
       if (!youtubeUrl.trim()) throw new Error('Please enter a YouTube URL.');
-      const token = get(idToken);
-      if (!token) throw new Error('You must be signed in.');
+      const token = get(accessToken);
+      if (!token) throw new Error('You must be signed in to submit a video.');
 
-      // 2) Check if we’ve seen this video before
-      const { exists, video_id } = await checkVideo(youtubeUrl, token);
+      // 2) Check if we've seen this video before
+      const { exists, video_id } = await checkVideo(youtubeUrl);
 
       if (exists && video_id) {
         // Prompt user: reprocess or just view
@@ -39,22 +39,18 @@
       }
 
       // 3) Either brand-new video, or user chose Reprocess
-      const newId = await sendIngest(youtubeUrl, true, token);
+      // Note: `sendIngest` now gets the token from the store automatically
+      const newId = await sendIngest(youtubeUrl, true);
       dispatch('started', { videoId: newId });
     }
     catch (err: any) {
-      // Special case: backend says AUTH_REQUIRED
       if (err.code === 'AUTH_REQUIRED') {
-        const choice = await Swal.fire({
-          title: 'YouTube Auth Needed',
-          text: err.message,
+         Swal.fire({
+          title: 'YouTube Account Not Connected',
+          text: "You are logged in, but you haven't connected your YouTube account yet. Please connect it to proceed.",
           icon: 'warning',
-          showCancelButton: true,
-          confirmButtonText: 'Connect YouTube'
+          confirmButtonText: 'OK'
         });
-        if (choice.isConfirmed) {
-          dispatch('requireYouTube');
-        }
       } else {
         Swal.fire('Error', err.message, 'error');
       }

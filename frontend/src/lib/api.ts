@@ -1,22 +1,31 @@
 // src/lib/api.ts
+import { get } from 'svelte/store';
+import { accessToken } from './auth';
+
+async function getHeaders() {
+    const token = get(accessToken);
+    const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
 export async function checkVideo(
-    url: string,
-    token: string
+    url: string
 ): Promise<{ exists: boolean; video_id: string | null }> {
     const res = await fetch('/api/ingest-url', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
+        headers: await getHeaders(),
         body: JSON.stringify({ url, force: false })
     });
 
-    // If backend 403s because of an auth issue, throw a structured error.
     if (res.status === 403) {
         const err = await res.json();
         const error: any = new Error(err.message || 'Authorization failed. Please connect your YouTube account.');
-        error.code = err.code; // Pass the code along for the UI to handle
+        error.code = err.code;
         throw error;
     }
 
@@ -24,21 +33,17 @@ export async function checkVideo(
     if (res.ok && json.status === 'exists') {
         return { exists: true, video_id: json.data.video_id };
     }
-
-    // New video
+    
     return { exists: false, video_id: null };
 }
+
 export async function sendIngest(
     url: string,
-    force: boolean,
-    token: string
+    force: boolean
 ): Promise<string> {
     const res = await fetch('/api/ingest-url', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
+        headers: await getHeaders(),
         body: JSON.stringify({ url, force })
     });
     if (!res.ok) {
@@ -48,13 +53,15 @@ export async function sendIngest(
     const json = await res.json();
     return json.video_id;
 }
-// Listen for SSE updates for a given videoId
+
 export function listenForUpdates(
     videoId: string,
-    token: string,
     onMessage: (data: any) => void,
     onError: () => void
 ): EventSource {
+    const token: string = get(accessToken) || '';
+    // Note: EventSource doesn't support custom headers, so we pass the token as a query param.
+    // The backend needs to be adapted to handle this for the /api/events/{videoId} endpoint.
     const es = new EventSource(`/api/events/${videoId}?token=${encodeURIComponent(token)}`);
     es.onmessage = e => {
         try {
@@ -69,13 +76,11 @@ export function listenForUpdates(
     };
     return es;
 }
-export async function exchangeAuthCode(code: string, token: string) {
+
+export async function exchangeAuthCode(code: string): Promise<void> {
     const res = await fetch('/api/oauth/exchange-code', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
+        headers: await getHeaders(), // This endpoint must be called *after* login
         body: JSON.stringify({ code })
     });
     if (!res.ok) {
@@ -83,3 +88,20 @@ export async function exchangeAuthCode(code: string, token: string) {
         throw new Error(err.detail || 'Failed to exchange authorization code.');
     }
 }
+
+export async function loginWithGoogle(idTokenFromGoogle: string): Promise<string> {
+    const res = await fetch('/api/auth/google/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: idTokenFromGoogle })
+    });
+
+    const payload = await res.json();
+    if (!res.ok) {
+        // include status for extra context
+        throw new Error(payload.detail || `Google login failed (${res.status})`);
+    }
+
+    return payload.access_token;
+}
+

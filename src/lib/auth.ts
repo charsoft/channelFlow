@@ -1,4 +1,3 @@
-// src/lib/auth.ts
 import { writable } from 'svelte/store';
 
 // Create a writable store for the access token.
@@ -29,4 +28,4 @@ accessToken.subscribe(value => {
             localStorage.removeItem('accessToken');
         }
     }
-});
+}); 
