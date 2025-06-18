@@ -135,7 +135,8 @@ async def ingest_url(request: IngestUrlRequest, current_user: dict = Depends(get
         event = NewVideoDetected(
             video_id=video_id,
             video_url=request.url,
-            video_title=video_title
+            video_title=video_title,
+            user_id=user_id
         )
         await event_bus.publish(event)
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict
+from typing import Dict, Optional
 from .event_base import Event
 
 @dataclass
@@ -8,6 +8,7 @@ class NewVideoDetected(Event):
     video_id: str
     video_url: str
     video_title: str
+    user_id: Optional[str] = None
 
 @dataclass
 class TranscriptReady(Event):
