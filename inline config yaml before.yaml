@@ -1,0 +1,41 @@
+steps:
+  - name: ubuntu
+    args:
+      - '-c'
+      - |
+        echo "${_SKAFFOLD_CONFIG}" > /workspace/skaffold.yaml
+    id: Skaffold yaml config
+    entrypoint: bash
+  - name: ubuntu
+    args:
+      - '-c'
+      - |
+        echo "${_RUN_CONFIG}" > /workspace/app-prod.yaml
+    id: Run yaml config
+    entrypoint: bash
+  - name: gcr.io/cloud-builders/gcloud
+    args:
+      - '-c'
+      - >-
+        gcloud deploy releases create app-release-$(echo ${BUILD_ID} | cut -f1
+        -d'-') \
+
+        --project=${PROJECT_ID} \
+
+        --region=${_REGION} \
+
+        --delivery-pipeline=${_PIPELINE_NAME} \
+
+        --images=app-image=${_IMAGE}:${SHORT_SHA}
+    id: Create new release on Cloud Deploy
+    entrypoint: bash
+timeout: 600s
+options:
+  logging: CLOUD_LOGGING_ONLY
+substitutions:
+  _PIPELINE_NAME: channel-flow-delivery
+  _REGION: us-central1
+  _RUN_CONFIG: "apiVersion: serving.knative.dev/v1\r\nkind: Service\r\nmetadata:\r\n  name: channel-flow-svc\r\nspec:\r\n  template:\r\n    spec:\r\n      serviceAccountName: channel-flow-svc-sa@channel-flow-2.iam.gserviceaccount.com\r\n      volumes:\r\n      - name: youtube-api-key-volume\r\n        secret:\r\n          secretName: youtube-api-key\r\n      - name: target-channel-id-volume\r\n        secret:\r\n          secretName: target-channel-id\r\n      - name: gemini-api-key-volume\r\n        secret:\r\n          secretName: gemini-api-key\r\n      - name: jwt-secret-key-volume\r\n        secret:\r\n          secretName: jwt-secret-key\r\n      containers:\r\n      - image: app-image\r\n        ports:\r\n        - containerPort: 8080\r\n        volumeMounts:\r\n        - name: youtube-api-key-volume\r\n          mountPath: \"/etc/secrets/youtube\"\r\n          readOnly: true\r\n        - name: target-channel-id-volume\r\n          mountPath: \"/etc/secrets/channel\"\r\n          readOnly: true\r\n        - name: gemini-api-key-volume\r\n          mountPath: \"/etc/secrets/gemini\"\r\n          readOnly: true\r\n        - name: jwt-secret-key-volume\r\n          mountPath: \"/etc/secrets/jwt\"\r\n          readOnly: true\r\n        env:\r\n        - name: GOOGLE_CLOUD_PROJECT\r\n          value: channel-flow-2\r\n        - name: GCS_BUCKET_NAME\r\n          value: channel-flow-bfqk9g4k\r\n        - name: GCP_REGION\r\n          value: us-central1\r\n        - name: GEMINI_MODEL_NAME\r\n          value: gemini-2.5-pro-preview-06-05\r\n        - name: IMAGEN_MODEL_NAME\r\n          value: imagen-3.0-generate-002\r\n        - name: GEMINI_API_KEY\r\n          valueFrom:\r\n            secretKeyRef:\r\n              name: gemini-api-key\r\n              key: latest\r\n        - name: YOUTUBE_API_KEY\r\n          valueFrom:\r\n            secretKeyRef:\r\n              name: youtube-api-key\r\n              key: latest\r\n        - name: TARGET_CHANNEL_ID\r\n          valueFrom:\r\n            secretKeyRef:\r\n              name: target-channel-id\r\n              key: latest\r\n        - name: SECRET_KEY\r\n          valueFrom:\r\n            secretKeyRef:\r\n              name: channelflow-secret-key\r\n              key: latest\r\n        - name: GOOGLE_CLIENT_ID\r\n          valueFrom:\r\n            secretKeyRef:\r\n              name: channelflow-google-client-id\r\n              key: latest\r\n        - name: GOOGLE_CLIENT_SECRET\r\n          valueFrom:\r\n            secretKeyRef:\r\n              name: channelflow-google-client-secret\r\n              key: latest\r\n        - name: JWT_SECRET_KEY\r\n          valueFrom:\r\n            secretKeyRef:\r\n              name: jwt-secret-key\r\n              key: latest"
+  _RUN_SERVICE_NAME: channel-flow-svc
+  _SKAFFOLD_CONFIG: "apiVersion: skaffold/v3alpha1\r\nkind: Config\r\nmetadata: \r\n  name: channel-flow-svc\r\nprofiles:\r\n- name: prod\r\n  manifests:\r\n    rawYaml:\r\n    - app-prod.yaml\r\ndeploy:\r\n  cloudrun: {}"
+  _IMAGE: us-central1-docker.pkg.dev/channel-flow-2/channel-flow-repo/app
