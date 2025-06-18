@@ -41,7 +41,7 @@
       if (!res.ok) {
           throw new Error(`Failed to fetch config: ${res.statusText}`);
       }
-      const cfg = await res.json();
+      const cfg = await res.json();  
       clientId = cfg.google_client_id;
       console.info(`[AuthButton DBG]: Received Client ID: ${clientId}`);
       if (!clientId) {
