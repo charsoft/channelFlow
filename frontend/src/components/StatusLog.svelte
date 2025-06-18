@@ -44,7 +44,7 @@
       es.close();
     }
   });
-</script>
+</script>  
 
 <div class="status-log-container">
   <h4>Processing Log for {currentVideoId}</h4>
