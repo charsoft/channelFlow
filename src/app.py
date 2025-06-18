@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import firebase_admin
 
 from src.agents.analysis import AnalysisAgent
 from src.agents.copywriter import CopywriterAgent
@@ -61,12 +60,7 @@ async def startup_event():
     and start any background tasks.
     """
     app.state.video_cache = video_cache
-    try:
-        firebase_admin.initialize_app()
-        print("✅ Firebase Admin SDK initialized successfully.")
-    except Exception as e:
-        print(f"🚨 Failed to initialize Firebase Admin SDK: {e}")
-
+    
     print("Application starting up...")
 
     gcs_bucket_name = os.getenv("GCS_BUCKET_NAME")

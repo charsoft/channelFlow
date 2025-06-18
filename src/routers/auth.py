@@ -13,7 +13,6 @@ from ..security import encrypt_data, decrypt_data
 from ..auth.authentication import create_access_token, JWT_SECRET_KEY, ALGORITHM
 
 router = APIRouter(
-    prefix="/api",
     tags=["authentication"],
 )
 
@@ -50,7 +49,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     # but for now, just returning the ID is sufficient.
     return {"uid": user_id}
 
-@router.post("/auth/google/login")
+@router.post("/api/auth/google/login")
 async def google_login(request: GoogleLoginRequest):
     """
     Handles Google Sign-In. Verifies Google token, finds or creates a user,
@@ -99,7 +98,7 @@ async def google_login(request: GoogleLoginRequest):
             detail="An unexpected error occurred during login."
         )
 
-@router.get("/config", response_model=ClientConfig)
+@router.get("/api/config", response_model=ClientConfig)
 async def get_client_config():
     """
     Provides the client-side application with necessary configuration,
@@ -114,7 +113,7 @@ async def get_client_config():
         google_client_id=client_id
     )
 
-@router.post("/oauth/exchange-code")
+@router.post("/api/oauth/exchange-code")
 async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(get_current_user)):
     """
     Exchanges a Google OAuth authorization code for credentials and stores them securely.
