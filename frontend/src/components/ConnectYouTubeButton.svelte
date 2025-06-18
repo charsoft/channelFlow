@@ -35,7 +35,7 @@
         } catch (err: any) {
           Swal.fire('Oops', err.message || 'Could not connect YouTube.', 'error');
         }
-      },
+      }, 
     });
     client.requestCode();
   }
