@@ -11,14 +11,16 @@
   let currentVideoId: string | null = null;
   let activeAgent: string = '';
   let showLog: boolean = false;
+  let logKey = 0;
   
   // A simple check to see if the user has connected YouTube.
   // In a real app, this would be a more robust check against the backend.
   let isYouTubeConnected = false; 
 
-  function handleStarted(e: CustomEvent) {
+  function handleNewIngestion(e: CustomEvent) {
     currentVideoId = e.detail.videoId;
     showLog = true;
+    logKey += 1; // Increment the key to force re-render
   }
 
   function handleView(e: CustomEvent) {
@@ -72,10 +74,12 @@
       </div>
     {/if}
 
-    <IngestForm on:started={handleStarted} on:view={handleView} />
+    <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleView} />
 
-    {#if showLog}
-      <StatusLog {currentVideoId} />
+    {#if showLog && currentVideoId}
+      {#key logKey}
+        <StatusLog {currentVideoId} />
+      {/key}
     {/if}
   </div>
 

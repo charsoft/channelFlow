@@ -41,7 +41,7 @@
       // 3) Either brand-new video, or user chose Reprocess
       // Note: `sendIngest` now gets the token from the store automatically
       const newId = await sendIngest(youtubeUrl, true);
-      dispatch('started', { videoId: newId });
+      dispatch('new-ingestion', { videoId: newId });
     }
     catch (err: any) {
       if (err.code === 'AUTH_REQUIRED') {
