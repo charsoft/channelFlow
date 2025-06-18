@@ -25,6 +25,7 @@ install google cloud sdk
 	
 - Enable VertexAI service (go to the api keys page and set this to "web")
 - Enable YouTube API (configure the app to allow us to read their youtube account)
+- Enable the Firestore API and create a default database. Make it in the nam5 region, and use standard security.
 
 - Manually create the OAuth Client ID and Secret in GCP Console
 	- under APIs & Services, click "Credentials"
