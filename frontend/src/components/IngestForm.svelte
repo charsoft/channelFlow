@@ -25,7 +25,7 @@
         const res = await Swal.fire({
           title: 'Video Already Processed',
           text: 'Would you like to reprocess it or view existing results?',
-          icon: 'question',  
+          icon: 'question',     
           showDenyButton: true,
           confirmButtonText: 'Reprocess',
           denyButtonText: 'View Existing'
