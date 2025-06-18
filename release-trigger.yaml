@@ -1,0 +1,134 @@
+build:
+  steps:
+  - name: 'ubuntu'
+    id: 'Skaffold yaml config'
+    entrypoint: 'bash'
+    args:
+    - '-c'
+    - |
+        echo "${_SKAFFOLD_CONFIG}" > /workspace/skaffold.yaml
+  - name: 'gcr.io/cloud-builders/jq'
+    id: 'Parse image name'
+    entrypoint: 'bash'
+    args:
+    - "-c"
+    - |
+      echo "Extracting image name from pub/sub message..."
+      IMAGE_NAME=$(echo "${_MESSAGE}" | base64 -d | jq -r '.jsonPayload.name')
+      echo "Found image name: $IMAGE_NAME"
+      echo "$IMAGE_NAME" > /workspace/image_name.txt
+  - name: 'ubuntu'
+    id: 'Run yaml config'
+    entrypoint: 'bash'
+    args:
+    - '-c'
+    - |
+        echo "${_RUN_CONFIG}" > /workspace/app-prod.yaml
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Create new release on Cloud Deploy'
+    entrypoint: 'bash'
+    args:
+    - '-c'
+    - |
+        gcloud deploy releases create app-release-$(echo ${BUILD_ID} | cut -f1 -d'-') \
+        --project=${PROJECT_ID} \
+        --region=${_REGION} \
+        --delivery-pipeline=${_PIPELINE_NAME} \
+        --images=app-image=$(cat /workspace/image_name.txt)
+  substitutions:
+    _IMAGE: us-central1-docker.pkg.dev/channel-flow-2/channel-flow-repo/app
+    _PIPELINE_NAME: channel-flow-delivery
+    _REGION: us-central1
+    _RUN_CONFIG: |-
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      metadata:
+        name: channel-flow-svc
+      spec:
+        template:
+          spec:
+            serviceAccountName: channel-flow-svc-sa@channel-flow-2.iam.gserviceaccount.com
+            volumes:
+            - name: youtube-api-key-volume
+              secret:
+                secretName: youtube-api-key
+            - name: target-channel-id-volume
+              secret:
+                secretName: target-channel-id
+            - name: gemini-api-key-volume
+              secret:
+                secretName: gemini-api-key
+            - name: jwt-secret-key-volume
+              secret:
+                secretName: jwt-secret-key
+            containers:
+            - image: app-image
+              ports:
+              - containerPort: 8080
+              volumeMounts:
+              - name: youtube-api-key-volume
+                mountPath: "/etc/secrets/youtube"
+                readOnly: true
+              - name: target-channel-id-volume
+                mountPath: "/etc/secrets/channel"
+                readOnly: true
+              - name: gemini-api-key-volume
+                mountPath: "/etc/secrets/gemini"
+                readOnly: true
+              - name: jwt-secret-key-volume
+                mountPath: "/etc/secrets/jwt"
+                readOnly: true
+              env:
+              - name: GOOGLE_CLOUD_PROJECT
+                value: channel-flow-2
+              - name: GCS_BUCKET_NAME
+                value: channel-flow-bfqk9g4k
+              - name: GCP_REGION
+                value: us-central1
+              - name: GEMINI_MODEL_NAME
+                value: gemini-1.5-pro-preview-0514
+              - name: IMAGEN_MODEL_NAME
+                value: imagen-3.0-generate-001
+              - name: GEMINI_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: gemini-api-key
+                    key: latest
+              - name: YOUTUBE_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: youtube-api-key
+                    key: latest
+              - name: TARGET_CHANNEL_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: target-channel-id
+                    key: latest
+              - name: JWT_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: jwt-secret-key
+                    key: latest
+    _RUN_SERVICE_NAME: channel-flow-svc
+    _SKAFFOLD_CONFIG: |-
+      apiVersion: skaffold/v3alpha1
+      kind: Config
+      metadata:
+        name: channel-flow-svc
+      profiles:
+      - name: prod
+        manifests:
+          rawYaml:
+          - app-prod.yaml
+      deploy:
+        cloudrun: {}
+    _MESSAGE: $(body.message.data)
+  timeout: 600s
+description: Triggers on any new build pushed to Artifact Registry. Creates a new
+  release in Cloud Deploy.
+name: channel-flow-new-release
+pubsubConfig:
+  subscription: projects/channel-flow-2/subscriptions/gcb-channel-flow-new-release
+  topic: projects/channel-flow-2/topics/gcr
+serviceAccount: projects/channel-flow-2/serviceAccounts/channel-flow-svc-builder@channel-flow-2.iam.gserviceaccount.com
+filename: release-trigger.yaml 
