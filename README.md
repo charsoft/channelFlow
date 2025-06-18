@@ -256,4 +256,27 @@ If you are still facing permissions issues, this script can be used as a general
 ```
 ```
  -----
+-----
+Create a JWT_SECRET_KEY for the youtube connection
+(skip attempts to make Terraform do it...)
+
+1.  **Generate a Secret Key:**
+    First, you need a strong, random key. Run this command in your local terminal to generate one:
+    ```bash
+    python -c "import secrets; print(secrets.token_hex(32))"
+    ```
+    Copy the long string it prints out.
+
+2.  **Create the Secret in Secret Manager:**
+    *   In the Google Cloud Console, navigate to **Security** -> **Secret Manager**.
+    *   Click **+ CREATE SECRET**.
+    *   For the **Secret name**, enter exactly `jwt-secret-key`. This must match the name the application is looking for.
+    *   In the **Secret value** field, paste the key you just generated.
+    *   Leave all other options as default and click **Create secret**.
+
+That's it. Your application is already configured to look for a secret with that exact name, and the `grant_cloud_run_sa_roles.sh` script we created earlier has already given your Cloud Run service account the `Secret Manager Secret Accessor` role, so it has permission to read it.
+
+Once you push your latest application code, the backend will be able to fetch this secret and your JWT authentication should work.
+
+We can definitely revisit the Terraform configuration to clean it up and automate this whenever you're ready. Good luck with the push
 
