@@ -52,6 +52,11 @@ resource "google_project_service" "generativelanguage" {
   service = "generativelanguage.googleapis.com"
 }
 
+resource "google_project_service" "firestore" {
+  project = var.project_id
+  service = "firestore.googleapis.com"
+}
+
 # --- API Keys ---
 
 resource "google_apikeys_key" "youtube_api_key" {

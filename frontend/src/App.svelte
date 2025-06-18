@@ -6,6 +6,7 @@
   import PreviousVideos  from './components/PreviousVideos.svelte';
   import ConnectYouTubeButton from './components/ConnectYouTubeButton.svelte';
   import { accessToken } from './lib/auth';
+  import logoUrl from './assets/channel-flow-logo.png';
 
   let currentVideoId: string | null = null;
   let activeAgent: string = '';
@@ -44,7 +45,7 @@
         <span class="hamburger-line"></span>
       </button>
       <a href="/" class="logo-link">
-        <img src="/src/assets/channel-flow-logo.png" alt="ChannelFlow Logo" class="logo-icon" />
+        <img src={logoUrl} alt="ChannelFlow Logo" class="logo-icon" />
       </a>
     </div>
     <nav class="nav-links">
