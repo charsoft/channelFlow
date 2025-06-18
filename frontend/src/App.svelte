@@ -44,7 +44,7 @@
         <span class="hamburger-line"></span>
       </button>
       <a href="/" class="logo-link">
-        <img src="/channel-flow-logo.png" alt="ChannelFlow Logo" class="logo-icon" />
+        <img src="/src/assets/channel-flow-logo.png" alt="ChannelFlow Logo" class="logo-icon" />
       </a>
     </div>
     <nav class="nav-links">
