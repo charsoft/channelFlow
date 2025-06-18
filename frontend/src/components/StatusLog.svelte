@@ -39,7 +39,7 @@
     onMount(); // Rerun mount logic
   }
 
-  onDestroy(() => {
+  onDestroy(() => {  
     if (es) {
       es.close();
     }
