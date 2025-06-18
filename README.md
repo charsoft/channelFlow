@@ -10,18 +10,28 @@ Setting it up in GCP
 
 Create a Google Cloud project
 
-
-install google cloud sdk
-	- authenticate to google cloud
-	- Set your project to the one you just created
-	- Set up the environment for Python
-		- pyenv install 3.12.4
-	 - Create the virtual environment
-	 	- python -m venv .venv
-	- Activate the virtual environment
-	 	- .\\.venv\\Scripts\\Activate.ps1
-	- Now install the requirements into the virtual environment	
-		- pip install -r requirements.txt	
+***
+#### install google cloud sdk
+1. **authenticate to google cloud:**  
+2. **Set your project to the one you just created**
+3. **Set up the environment for Python**
+	```bash
+ 		pyenv install 3.12.4
+  	```
+ 4. **Create the virtual environment**
+	```bash
+	 	python -m venv .venv
+ 	```
+ 
+5. **Activate the virtual environment**
+   	```bash
+	 	.\\.venv\\Scripts\\Activate.ps1
+    	```
+    
+6. **Now install the requirements into the virtual environment**	
+	```bash
+ 		pip install -r requirements.txt
+ 	```
 	
 - Enable VertexAI service (go to the api keys page and set this to "web")
 - Enable YouTube API (configure the app to allow us to read their youtube account)
