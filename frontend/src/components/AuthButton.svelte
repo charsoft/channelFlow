@@ -71,8 +71,7 @@
           }
         },
         ux_mode: 'popup',
-        auto_select: false,
-        use_fedcm_for_prompt: true
+        auto_select: false
       });
       console.info('[AuthButton DBG]: GSI initialization complete.');
 

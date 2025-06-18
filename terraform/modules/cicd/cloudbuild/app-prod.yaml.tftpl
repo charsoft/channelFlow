@@ -16,6 +16,18 @@ spec:
       - name: gemini-api-key-volume
         secret:
           secretName: gemini-api-key
+      - name: app-secret-key-volume
+        secret:
+          secretName: channelflow-secret-key
+      - name: client-id-secret-volume
+        secret:
+          secretName: channelflow-google-client-id
+      - name: client-secret-secret-volume
+        secret:
+          secretName: channelflow-google-client-secret
+      - name: jwt-secret-key-volume
+        secret:
+          secretName: jwt-secret-key
       containers:
       - image: app-image
         ports:
@@ -29,6 +41,18 @@ spec:
           readOnly: true
         - name: gemini-api-key-volume
           mountPath: "/etc/secrets/gemini"
+          readOnly: true
+        - name: app-secret-key-volume
+          mountPath: "/etc/secrets/app"
+          readOnly: true
+        - name: client-id-secret-volume
+          mountPath: "/etc/secrets/client-id"
+          readOnly: true
+        - name: client-secret-secret-volume
+          mountPath: "/etc/secrets/client-secret"
+          readOnly: true
+        - name: jwt-secret-key-volume
+          mountPath: "/etc/secrets/jwt"
           readOnly: true
         env:
         - name: GOOGLE_CLOUD_PROJECT
@@ -59,15 +83,20 @@ spec:
         - name: SECRET_KEY
           valueFrom:
             secretKeyRef:
-              name: ${app_secret_id}
+              name: channelflow-secret-key
               key: latest
         - name: GOOGLE_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: ${client_id_secret_id}
+              name: channelflow-google-client-id
               key: latest
         - name: GOOGLE_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: ${client_secret_secret_id}
+              name: channelflow-google-client-secret
+              key: latest
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret-key
               key: latest

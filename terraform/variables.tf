@@ -9,23 +9,32 @@ variable "region" {
   default     = "us-central1"
 }
 
-
-
-
-variable "target_channel_id" {
-  description = "The YouTube channel ID to monitor. This will be stored in Secret Manager."
+variable "github_repository_url" {
+  description = "The URL of the GitHub repository."
   type        = string
-  sensitive   = true
+}
+
+variable "run_service_name" {
+  description = "The name of the Cloud Run service."
+  type        = string
+  default     = "channel-flow-svc"
 }
 
 variable "gemini_model_name" {
   description = "The name of the Gemini model to use."
   type        = string
-
 }
 
 variable "imagen_model_name" {
   description = "The name of the Imagen model to use."
   type        = string
+}
 
+variable "labels" {
+  description = "A map of labels to apply to resources."
+  type        = map(string)
+  default = {
+    "app"       = "channel-flow"
+    "terraform" = "true"
+  }
 } 

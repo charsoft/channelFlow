@@ -20,6 +20,18 @@ variable "secret_key" {
   sensitive   = true
 }
 
+variable "target_channel_id" {
+  type        = string
+  description = "The YouTube channel ID to monitor."
+  sensitive   = true
+}
+
+variable "jwt_secret_key" {
+  type        = string
+  description = "A secret key for encoding and decoding JWTs."
+  sensitive   = true
+}
+
 resource "google_secret_manager_secret" "app_secret_key" {
   secret_id = "channelflow-secret-key"
   project   = var.project_id
@@ -62,6 +74,20 @@ resource "google_secret_manager_secret_version" "google_client_secret_secret_ver
   secret_data = var.google_client_secret
 }
 
+resource "google_secret_manager_secret" "jwt_secret" {
+  secret_id = "jwt-secret-key"
+  project   = var.project_id
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "jwt_secret_version" {
+  secret      = google_secret_manager_secret.jwt_secret.id
+  secret_data = var.jwt_secret_key
+}
+
 # --- Secrets from main.tf ---
 
 # YouTube API Key Secret
@@ -78,12 +104,6 @@ resource "google_secret_manager_secret_version" "youtube_api_key_secret_version"
   secret_data = google_apikeys_key.youtube_api_key.key_string
 }
 
-resource "google_secret_manager_secret_iam_member" "youtube_api_key_access" {
-  secret_id = google_secret_manager_secret.youtube_api_key_secret.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.api_service_account.email}"
-}
-
 # Target Channel ID Secret
 resource "google_secret_manager_secret" "target_channel_id_secret" {
   secret_id = "target-channel-id"
@@ -98,12 +118,6 @@ resource "google_secret_manager_secret_version" "target_channel_id_secret_versio
   secret_data = var.target_channel_id
 }
 
-resource "google_secret_manager_secret_iam_member" "target_channel_id_access" {
-  secret_id = google_secret_manager_secret.target_channel_id_secret.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.api_service_account.email}"
-}
-
 # Gemini API Key Secret
 resource "google_secret_manager_secret" "gemini_api_key_secret" {
   secret_id = "gemini-api-key"
@@ -116,10 +130,4 @@ resource "google_secret_manager_secret" "gemini_api_key_secret" {
 resource "google_secret_manager_secret_version" "gemini_api_key_secret_version" {
   secret      = google_secret_manager_secret.gemini_api_key_secret.id
   secret_data = google_apikeys_key.gemini_api_key.key_string
-}
-
-resource "google_secret_manager_secret_iam_member" "gemini_api_key_access" {
-  secret_id = google_secret_manager_secret.gemini_api_key_secret.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.api_service_account.email}"
 }

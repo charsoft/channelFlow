@@ -47,7 +47,4 @@ module "cicd_pipeline" {
   gcs_bucket_name           = data.terraform_remote_state.root.outputs.gcs_bucket_name
   gemini_model_name         = data.terraform_remote_state.root.outputs.gemini_model_name
   imagen_model_name         = data.terraform_remote_state.root.outputs.imagen_model_name
-  app_secret_id             = data.terraform_remote_state.root.outputs.app_secret_id
-  client_id_secret_id       = data.terraform_remote_state.root.outputs.client_id_secret_id
-  client_secret_secret_id   = data.terraform_remote_state.root.outputs.client_secret_secret_id
 }
