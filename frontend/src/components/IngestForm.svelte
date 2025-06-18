@@ -27,7 +27,7 @@
           text: 'Would you like to reprocess it or view existing results?',
           icon: 'question',     
           showDenyButton: true,
-          confirmButtonText: 'Reprocess',
+          confirmButtonText: 'Reprocess',  
           denyButtonText: 'View Existing'
         });
 
