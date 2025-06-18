@@ -1,0 +1,32 @@
+build:
+  images:
+  - $_IMAGE:${SHORT_SHA}
+  options:
+    logging: CLOUD_LOGGING_ONLY
+  substitutions:
+    _IMAGE: us-central1-docker.pkg.dev/channel-flow-2/channel-flow-repo/app
+  steps:
+  - args:
+    - build
+    - -t
+    - $_IMAGE:${SHORT_SHA}
+    - .
+    name: gcr.io/cloud-builders/docker
+  timeout: 600s
+createTime: '2025-06-17T19:50:58.251305941Z'
+description: Initiates new build of channel-flow-svc. Triggers by changes to app on
+  main branch of source repo.
+github:
+  name: channelFlow
+  owner: charsoft
+  push:
+    branch: ^main$
+id: a28e0b6d-f455-4100-a47b-5356d3b0945c
+includedFiles:
+- src/**
+- terraform/**
+- frontend/**
+- requirements.txt
+name: channel-flow-app-build
+resourceName: projects/channel-flow-2/locations/us-central1/triggers/a28e0b6d-f455-4100-a47b-5356d3b0945c
+serviceAccount: projects/channel-flow-2/serviceAccounts/channel-flow-svc-builder@channel-flow-2.iam.gserviceaccount.com

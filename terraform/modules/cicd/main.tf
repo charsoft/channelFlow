@@ -30,9 +30,8 @@ locals {
       gcp_region          = var.region
       gemini_model_name   = var.gemini_model_name
       imagen_model_name   = var.imagen_model_name
-      app_secret_id       = var.app_secret_id
-      client_id_secret_id = var.client_id_secret_id
-      client_secret_secret_id = var.client_secret_secret_id
+    
+    
     }
   )
 }
