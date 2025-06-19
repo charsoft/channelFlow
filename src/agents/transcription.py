@@ -9,11 +9,13 @@ import google.generativeai as genai
 import yt_dlp
 from google.cloud import storage
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from google.auth.exceptions import RefreshError
 
 from ..database import db
 from ..event_bus import event_bus
 from ..events import NewVideoDetected, TranscriptReady
-from ..security import decrypt_data
+from ..security import decrypt_data, encrypt_data
 
 class TranscriptionAgent:
     """
@@ -133,12 +135,17 @@ class TranscriptionAgent:
         return audio_gcs_uri
 
     async def _get_auth_headers(self, event: NewVideoDetected) -> dict:
-        """Returns authentication headers if user credentials are available."""
+        """
+        Returns authentication headers if user credentials are available.
+        Refreshes the token if it's expired.
+        """
         if not event.user_id:
             return {}
             
         print(f"   Attempting to use credentials for user: {event.user_id}")
-        cred_doc = await db.collection("user_credentials").document(event.user_id).get()
+        cred_doc_ref = db.collection("user_credentials").document(event.user_id)
+        cred_doc = await cred_doc_ref.get()
+
         if not cred_doc.exists:
             print(f"   Could not find credentials for user {event.user_id}. Falling back.")
             return {}
@@ -147,9 +154,34 @@ class TranscriptionAgent:
             encrypted_creds = cred_doc.to_dict().get("credentials")
             decrypted_creds_json = decrypt_data(encrypted_creds)
             creds = Credentials.from_authorized_user_info(json.loads(decrypted_creds_json))
+
+            if creds.expired and creds.refresh_token:
+                print("   Credentials expired. Attempting to refresh...")
+                try:
+                    # Run the synchronous refresh method in a thread to avoid blocking asyncio
+                    await asyncio.to_thread(creds.refresh, Request())
+                    
+                    # Save the updated credentials back to Firestore
+                    new_creds_json = creds.to_json()
+                    encrypted_new_creds = encrypt_data(new_creds_json.encode())
+                    await cred_doc_ref.set({"credentials": encrypted_new_creds})
+                    print("   Credentials successfully refreshed and stored.")
+
+                except RefreshError as e:
+                    print(f"   ❌ Could not refresh token for user {event.user_id}: {e}")
+                    # This might happen if the user revoked access.
+                    # We should probably notify the user to re-authenticate.
+                    await self.update_video_status(
+                        event.video_id, 
+                        "auth_failed", 
+                        {"error": "Failed to refresh YouTube authentication token. Please reconnect your account."}
+                    )
+                    return {}
+
             if creds.token:
                 print("   Successfully created OAuth token for request header.")
                 return {'Authorization': f'Bearer {creds.token}'}
+                
         except Exception as e:
             print(f"   Failed to decrypt or load credentials for user {event.user_id}: {e}")
             
