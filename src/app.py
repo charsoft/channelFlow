@@ -38,7 +38,7 @@ video_cache = {}
 
 @app.on_event("shutdown")
 def shutdown_event():
-    """
+    """  
     On shutdown, clean up any temporary video cache directories.
     """
     print("Application shutting down. Cleaning up video cache...")
@@ -60,9 +60,9 @@ async def startup_event():
     and start any background tasks.
     """
     app.state.video_cache = video_cache
-    
-    print("Application starting up...")
 
+    print("Application starting up...")
+    
     gcs_bucket_name = os.getenv("GCS_BUCKET_NAME")
     if not gcs_bucket_name:
         print("🚨 GCS_BUCKET_NAME is not configured. File storage agents will fail.")
@@ -90,12 +90,12 @@ async def startup_event():
 
     api_key = os.getenv("YOUTUBE_API_KEY")
     channel_id = os.getenv("TARGET_CHANNEL_ID")
-
+    
     if not api_key or api_key == "YOUR_YOUTUBE_API_KEY":
         print("🚨 YOUTUBE_API_KEY is not set or is invalid. Please set it in your .env file.")
         app.state.ingestion_agent = None
         return
-
+        
     try:
         print("Attempting to initialize IngestionAgent...")
         app.state.ingestion_agent = IngestionAgent(api_key=api_key, channel_id=channel_id)
@@ -108,32 +108,32 @@ async def startup_event():
         app.state.ingestion_agent = None
 
     enable_auto_ingestion = os.getenv("ENABLE_AUTO_INGESTION", "false").lower() == "true"
-
+    
     if enable_auto_ingestion and app.state.ingestion_agent:
         print("✅ Auto-ingestion monitoring is ENABLED.")
         asyncio.create_task(app.state.ingestion_agent.start_monitoring())
     else:
         print("⚪️ Auto-ingestion monitoring is DISABLED. Use the web UI for on-demand processing.")
-
+    
     TranscriptionAgent(
-        api_key=gemini_api_key,
+        api_key=gemini_api_key, 
         bucket_name=gcs_bucket_name,
         ffmpeg_path=ffmpeg_path,
         model_name="gemini-1.5-pro-latest"
     )
     AnalysisAgent(api_key=gemini_api_key, bucket_name=gcs_bucket_name, model_name=gemini_model_name)
     CopywriterAgent(api_key=gemini_api_key, bucket_name=gcs_bucket_name, model_name=gemini_model_name)
-
+    
     app.state.visuals_agent = VisualsAgent(
-        api_key=gemini_api_key,
-        project_id=gcp_project_id,
-        location=gcp_region,
+        api_key=gemini_api_key, 
+        project_id=gcp_project_id, 
+        location=gcp_region, 
         bucket_name=gcs_bucket_name,
         model_name=imagen_model_name,
         gemini_model_name=gemini_model_name
     )
     PublisherAgent()
-
+    
     print("All agents have been initialized.")
 
 

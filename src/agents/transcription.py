@@ -2,26 +2,25 @@ import asyncio
 import os
 import tempfile
 import uuid
-import ffmpeg
+import json
+from datetime import datetime
+
 import google.generativeai as genai
 import yt_dlp
 from google.cloud import storage
 from google.oauth2.credentials import Credentials
+
+from ..database import db
 from ..event_bus import event_bus
 from ..events import NewVideoDetected, TranscriptReady
-from ..database import db
-import json
 from ..security import decrypt_data
-from .base_agent import BaseAgent, handle_event
 
-class TranscriptionAgent(BaseAgent):
+class TranscriptionAgent:
     """
     ✍️ TranscriptionAgent
     Purpose: To convert spoken video content into written text.
     """
-
     def __init__(self, api_key: str, bucket_name: str, model_name: str, ffmpeg_path: str = None):
-        super().__init__()
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name=model_name)
         self.storage_client = storage.Client()
@@ -31,24 +30,36 @@ class TranscriptionAgent(BaseAgent):
         self.cookies_file = os.getenv("YOUTUBE_COOKIES_FILE_PATH")
         event_bus.subscribe(NewVideoDetected, self.handle_new_video)
 
-    @handle_event(NewVideoDetected)
-    async def handle_new_video(self, event: NewVideoDetected):
+    async def update_video_status(self, video_id: str, status: str, data: dict = None):
+        """Helper to update video status in Firestore."""
+        doc_ref = db.collection("videos").document(video_id)
+        update_data = {"status": status, "updated_at": datetime.utcnow()}
+        if data:
+            update_data.update(data)
+        await doc_ref.update(update_data)
+
+    def handle_new_video(self, event: NewVideoDetected):
+        """Synchronous wrapper to schedule the async processing task."""
+        asyncio.create_task(self.process_video(event))
+
+    async def process_video(self, event: NewVideoDetected):
         """
-        Downloads video audio to GCS, transcribes it using Gemini 1.5 Pro via the GCS URI,
-        and saves the result to Firestore.
+        Main async method to handle the entire transcription process for a video.
         """
         print(f"✍️ TranscriptionAgent: Received new video: {event.video_title}")
-        video_doc_ref = db.collection("videos").document(event.video_id)
         audio_gcs_uri = None
-
         try:
-            doc = await video_doc_ref.get()
-            video_data = doc.to_dict()
-
-            if video_data.get("status") in ["transcribed", "analyzed", "copy_generated", "visuals_generated", "published"]:
-                print(f"   Transcript for '{event.video_title}' already exists. Skipping transcription.")
-                await self._republish_event(event, video_data)
-                return
+            doc_ref = db.collection("videos").document(event.video_id)
+            doc = await doc_ref.get()
+            
+            if not doc.exists:
+                await doc_ref.set({"video_title": event.video_title, "video_url": event.video_url, "created_at": datetime.utcnow()})
+            else:
+                video_data = doc.to_dict()
+                if video_data.get("status") in ["transcribed", "analyzed", "copy_generated", "visuals_generated", "published"]:
+                    print(f"   Transcript for '{event.video_title}' already exists. Skipping transcription.")
+                    await self._republish_event(event, video_data)
+                    return
 
             await self.update_video_status(event.video_id, "transcribing")
             
@@ -64,17 +75,16 @@ class TranscriptionAgent(BaseAgent):
             transcript_gcs_uri = await self._save_transcript_to_gcs(event.video_id, transcript_json)
 
             await self.update_video_status(
-                event.video_id, 
-                "transcribed", 
+                event.video_id,
+                "transcribed",
                 {"transcript_gcs_uri": transcript_gcs_uri, "audio_gcs_uri": audio_gcs_uri}
             )
 
-            transcript_ready_event = TranscriptReady(
+            await event_bus.publish(TranscriptReady(
                 video_id=event.video_id,
                 video_title=event.video_title,
                 transcript_gcs_uri=transcript_gcs_uri
-            )
-            await event_bus.publish(transcript_ready_event)
+            ))
 
         except Exception as e:
             print(f"❌ TranscriptionAgent Error: {e}")
@@ -115,7 +125,6 @@ class TranscriptionAgent(BaseAgent):
                 if error_code != 0:
                     raise RuntimeError("yt-dlp failed to download the video.")
                 
-                # Find the downloaded file
                 downloaded_file = next(f for f in os.listdir(tmpdir) if f.startswith(event.video_id))
                 downloaded_path = os.path.join(tmpdir, downloaded_file)
                 await asyncio.to_thread(blob.upload_from_filename, downloaded_path)
@@ -174,56 +183,33 @@ class TranscriptionAgent(BaseAgent):
             
     async def _republish_event(self, event: NewVideoDetected, video_data: dict):
         """Republishes the TranscriptReady event if transcription is already done."""
-        transcript_ready_event = TranscriptReady(
+        await event_bus.publish(TranscriptReady(
             video_id=event.video_id,
             video_title=event.video_title,
             transcript_gcs_uri=video_data.get("transcript_gcs_uri")
-        )
-        await event_bus.publish(transcript_ready_event)
+        ))
 
     def _parse_transcript_response(self, response) -> dict:
-        """
-        Parses the complex response object from Gemini into a structured
-        JSON format containing the full text and timestamped segments.
-        This version correctly handles a single GenerateContentResponse object.
-        """
-        transcript_data = {
-            "full_transcript": "",
-            "segments": []
-        }
-        
+        """Parses the Gemini response into a structured JSON format."""
+        transcript_data = {"full_transcript": "", "segments": []}
         full_text_parts = []
-        
-        # The response object from the SDK is not iterable. We access its .parts directly.
         try:
             for part in response.parts:
-                # Check for the presence of speech-to-text data, which contains timestamps
                 if hasattr(part, 'speech_to_text') and part.speech_to_text:
-                    # If we find structured data, use it as the source of truth
                     for segment in part.speech_to_text:
                         start_sec = segment.start_offset.total_seconds()
                         end_sec = segment.end_offset.total_seconds()
                         text = segment.transcript
-                        transcript_data["segments"].append({
-                            "start": start_sec,
-                            "end": end_sec,
-                            "text": text
-                        })
+                        transcript_data["segments"].append({"start": start_sec, "end": end_sec, "text": text})
                         full_text_parts.append(text)
-                # Fallback to plain text part if no structured data is found in a part
                 elif part.text:
                     full_text_parts.append(part.text)
-
         except (AttributeError, TypeError) as e:
-            # Log if the expected response structure isn't there, but don't crash
             print(f"   [Notice] Could not parse detailed segments from response part: {e}")
         
-        # If no segments were extracted (e.g., audio was silent or API response was minimal),
-        # rely on the response's top-level .text attribute as a final fallback.
         if not full_text_parts and response.text:
             transcript_data["full_transcript"] = response.text
         else:
-            # Join all collected text parts to form the full transcript.
             transcript_data["full_transcript"] = " ".join(full_text_parts).strip()
             
         return transcript_data 

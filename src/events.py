@@ -1,6 +1,10 @@
-from dataclasses import dataclass, field
-from typing import Dict, Optional
-from .event_base import Event
+from dataclasses import dataclass
+from typing import Optional
+
+# Base Event class
+class Event:
+    """Base class for all events."""
+    pass
 
 @dataclass
 class NewVideoDetected(Event):
