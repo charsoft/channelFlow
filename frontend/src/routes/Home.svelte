@@ -78,11 +78,19 @@
  
 
   {#if $videoStatus}
-    <StatusLog />
+    <div class="processing-section">
+      <Workflow />
+      <StatusLog />
+    </div>
   {/if}
 </div>
 
 <style>
+  .processing-section {
+    margin-top: 2rem;
+    border-top: 1px solid #e5e7eb; /* gray-200 */
+    padding-top: 2rem;
+  }
   .ingestion-controls {
     display: flex;
     align-items: flex-start;

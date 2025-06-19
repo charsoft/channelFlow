@@ -29,6 +29,7 @@
       </a>
     </div>
     <nav class="nav-links">
+      <a href="/" on:click|preventDefault={() => push('/')} class="nav-link button-secondary">New Ingestion</a>
       <a href="#/dashboard" class="nav-link button-secondary">Content Dashboard</a>
       <a href="/management" class="nav-link button-secondary">Maintenance</a>
       <div class="user-auth">

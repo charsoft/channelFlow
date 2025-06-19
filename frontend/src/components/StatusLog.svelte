@@ -13,8 +13,19 @@
         <li>
           <strong>{new Date(status.updated_at).toLocaleTimeString()}:</strong>
           Stage <em>{status.status}</em> - {status.status_message || 'Update received.'}
+          {#if status.status === 'failed' && status.error}
+            <span class="error-message">Error: {status.error}</span>
+          {/if}
         </li>
       {/each}
     </ul>
   {/if}
 </div>
+
+<style>
+  .error-message {
+    color: #ef4444; /* red-500 */
+    font-weight: bold;
+    margin-left: 0.5rem;
+  }
+</style>
