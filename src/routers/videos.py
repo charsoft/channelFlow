@@ -20,9 +20,6 @@ from .auth import get_current_user
 
 router = APIRouter()
 
-class IngestRequest(BaseModel):
-    url: str
-
 class IngestUrlRequest(BaseModel):
     url: str
     force: bool = False
@@ -281,50 +278,12 @@ async def get_video(video_id: str):
         print(f"Error fetching video {video_id}: {e}")
         return JSONResponse(status_code=500, content={"message": "Failed to fetch video."})
 
-@router.post("/api/ingest")
-async def ingest_video(request: IngestRequest, app_request: Request):
-    """
-    API endpoint to manually trigger ingestion. Uses the shared IngestionAgent.
-    """
-    try:
-        video_id = get_video_id(request.url)
-        if not video_id:
-            return JSONResponse(status_code=400, content={"message": "Invalid YouTube URL"})
-
-        video_doc_ref = db.collection("videos").document(video_id)
-        doc = await video_doc_ref.get()
-
-        if doc.exists:
-            data = doc.to_dict()
-            for key, value in data.items():
-                if isinstance(value, datetime):
-                    data[key] = value.isoformat()
-            response_data = {
-                "status": "exists",
-                "current_stage": data.get("status", "unknown"),
-                "data": data
-            }
-            return JSONResponse(status_code=200, content=response_data)
-
-        ingestion_agent = app_request.app.state.ingestion_agent
-        if not ingestion_agent:
-            return JSONResponse(status_code=500, content={"message": "IngestionAgent is not available."})
-
-        video_title = await ingestion_agent.get_video_title(video_id)
-        
-        if not video_title:
-             return JSONResponse(status_code=400, content={"message": "Could not retrieve video title."})
-
-        event = NewVideoDetected(
-            video_id=video_id,
-            video_url=request.url,
-            video_title=video_title
-        )
-        await event_bus.publish(event)
-
-        return JSONResponse(status_code=202, content={"message": "Video ingestion started.", "video_id": video_id})
-
-    except Exception as e:
-        import traceback
-        print(f"Error in /ingest: {e}\n{traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"message": "An internal error occurred."}) 
+# This is a duplicate and insecure endpoint. Removing it.
+# @router.post("/api/ingest")
+# async def ingest_video(request: IngestRequest, app_request: Request):
+#     """
+#     DEPRECATED: This endpoint is for automated ingestion and does not use
+#     the user's credentials. It's less secure and should not be used
+#     by the frontend.
+#     """
+#     # ... implementation ... 
