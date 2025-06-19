@@ -2,7 +2,6 @@
   import IngestForm from '../components/IngestForm.svelte';
   import StatusLog from '../components/StatusLog.svelte';
   import Workflow from '../components/Workflow.svelte';
-  import PreviousVideos from '../components/PreviousVideos.svelte';
   import ConnectYouTubeButton from '../components/ConnectYouTubeButton.svelte';
   import { accessToken } from '../lib/auth';
   import { videoStatus } from '../lib/stores';
@@ -82,13 +81,6 @@
     <StatusLog />
   {/if}
 </div>
-
-
-
-<!-- Previously processed videos -->
-{#if $accessToken}
-  <PreviousVideos />
-{/if}
 
 <style>
   .ingestion-controls {

@@ -4,10 +4,12 @@
   import logoUrl from './assets/channel-flow-logo.png';
   import Home from './routes/Home.svelte';
   import VideoDetail from './routes/VideoDetail.svelte';
+  import Dashboard from './routes/Dashboard.svelte';
 
   const routes = {
     '/': Home,
     '/video/:id': VideoDetail,
+    '/dashboard': Dashboard,
     '*': Home, // Fallback for any other route
   };
 
@@ -27,7 +29,7 @@
       </a>
     </div>
     <nav class="nav-links">
-      <a href="/management" class="nav-link button-secondary">Content Dashboard</a>
+      <a href="#/dashboard" class="nav-link button-secondary">Content Dashboard</a>
       <a href="/management" class="nav-link button-secondary">Maintenance</a>
       <div class="user-auth">
         <AuthButton />
