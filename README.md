@@ -36,7 +36,34 @@ Create a Google Cloud project
 - Enable VertexAI service (go to the api keys page and set this to "web")
 - Enable YouTube API (configure the app to allow us to read their youtube account)
 - Enable the Firestore API and create a default database. Make it in the nam5 region, and use standard security.
+------ 
+FOR THE TRANSCRIBING AGENT
+------
+1. Create a service account
+Go to: https://console.cloud.google.com/iam-admin/serviceaccounts
 
+Click Create Service Account
+
+Name: channel-flow-transcriber
+
+Role: Storage Object Viewer + Storage Legacy Signer (optional but helps)
+
+Click Create and Continue
+
+On the final screen, click “Done”
+
+2. Download the key
+Click on your new service account
+
+Go to "Keys" tab
+
+Click "Add Key" → "Create new key"
+
+Choose JSON
+
+Save the file as service-account-key.json in your project folder
+
+--------
 - Manually create the OAuth Client ID and Secret in GCP Console
 	- under APIs & Services, click "Credentials"
 	- click "Configure Consent Screen", then "Get Started"
