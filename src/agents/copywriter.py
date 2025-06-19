@@ -85,7 +85,6 @@ class CopywriterAgent:
                 await asyncio.to_thread(
                     article_blob.upload_from_string, substack_article_content, 'text/markdown'
                 )
-                await asyncio.to_thread(article_blob.make_public)
                 substack_gcs_uri = f"gs://{self.bucket_name}/{article_path_gcs}"
                 # Extract the first line as the hook, splitting on the literal \n
                 substack_hook = substack_article_content.split('\n')[0].strip()

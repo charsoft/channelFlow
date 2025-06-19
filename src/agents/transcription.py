@@ -13,6 +13,7 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from google.auth.exceptions import RefreshError
 import requests
+from google.oauth2 import service_account
 
 from ..database import db
 from ..event_bus import event_bus
@@ -27,7 +28,14 @@ class TranscriptionAgent:
     def __init__(self, api_key: str, bucket_name: str, model_name: str, ffmpeg_path: str = None):
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         self.model_name = model_name
-        self.storage_client = storage.Client()
+
+        creds = None
+        creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if creds_path and os.path.exists(creds_path):
+            creds = service_account.Credentials.from_service_account_file(creds_path)
+            print("✍️ TranscriptionAgent: Authenticating with service account credentials.")
+
+        self.storage_client = storage.Client(credentials=creds)
         self.bucket_name = bucket_name
         self.bucket = self.storage_client.bucket(bucket_name)
         self.ffmpeg_path = ffmpeg_path
@@ -57,17 +65,35 @@ class TranscriptionAgent:
 
             print(f"   Passing GCS URI '{video_gcs_uri}' to Gemini for transcription...")
 
-            video_url = video_gcs_blob.generate_signed_url(expiration=timedelta(minutes=15), method="GET")
+            # grab the signed URL on the Blob (as before)
+            blob = self.bucket.blob(video_gcs_blob.name)
+            video_url = blob.generate_signed_url(
+                expiration=timedelta(minutes=15),
+                method="GET",
+                version="v4"
+            )
+
+            # download the bytes
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
             video_data = b''.join(response.iter_content(chunk_size=8192))
-
-            video_part = Part.from_bytes(data=video_data, mime_type=video_gcs_blob.content_type)
-            prompt = "Please transcribe this video's audio."
-            response = await self.client.generate_content_async(
-                model=f"models/{self.model_name}",
-                contents=[video_part, prompt]
+            
+            mime_type = video_gcs_blob.content_type or "video/mp4"
+            
+            # prepare the multimodal Part
+            video_part = Part.from_bytes(
+                data=video_data,
+                mime_type=mime_type
             )
+            prompt = "Please transcribe this video's audio."
+
+            # ←— HERE: use the supported sync generate_content, wrapped in to_thread
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
+                model=self.model_name,
+                contents=[video_part, prompt]
+            )  # :contentReference[oaicite:0]{index=0}
+
             print("   Transcription received.")
 
             transcript_json = self._parse_transcript_response(response)
@@ -88,6 +114,7 @@ class TranscriptionAgent:
         except Exception as e:
             print(f"❌ TranscriptionAgent Error: {e}")
             await self.update_video_status(event.video_id, "transcription_failed", {"error": str(e)})
+
 
     async def _get_video_gcs_uri(self, event: NewVideoDetected) -> (str, storage.Blob):
         possible_extensions = ['.mp4', '.mkv', '.webm', '.mov']

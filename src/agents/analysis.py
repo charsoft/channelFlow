@@ -73,7 +73,6 @@ class AnalysisAgent:
             analysis_path_gcs = f"analyses/{analysis_filename}"
             analysis_blob = bucket.blob(analysis_path_gcs)
             await asyncio.to_thread(analysis_blob.upload_from_string, json.dumps(analysis_results, indent=2), 'application/json')
-            await asyncio.to_thread(analysis_blob.make_public)
             print(f"   Analysis saved to GCS: gs://{self.bucket_name}/{analysis_path_gcs}")
 
             # 4. Save GCS URI and structured data to Firestore
