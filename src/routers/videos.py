@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
-from google.cloud import storage
+from google.cloud import storage, firestore
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
@@ -122,12 +122,26 @@ async def ingest_url(request: IngestUrlRequest, current_user: dict = Depends(get
             print(f"YouTube API Error for user {user_id}: {e}")
             return JSONResponse(status_code=403, content={"message": "Failed to access YouTube API. Your credentials may be invalid or revoked. Please try connecting your account again.", "code": "AUTH_REQUIRED"})
 
+        # Save the refreshed credentials back to Firestore
         new_creds_json = creds.to_json()
         encrypted_new_creds = encrypt_data(new_creds_json.encode())
         await cred_doc_ref.set({"credentials": encrypted_new_creds})
         
         if not video_title:
              return JSONResponse(status_code=400, content={"message": "Could not retrieve video title."})
+
+        # Create the initial video document in Firestore HERE
+        await db.collection("videos").document(video_id).set({
+            "video_id": video_id,
+            "video_url": request.url,
+            "video_title": video_title,
+            "user_id": user_id,
+            "status": "ingesting",
+            "status_message": "Starting ingestion process...",
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        })
+        print(f"   Saved initial data for {video_id} to Firestore.")
 
         event = NewVideoDetected(
             video_id=video_id,
@@ -205,14 +219,18 @@ async def re_trigger(request: RetriggerRequest):
 
     video_data = doc.to_dict()
     video_title = video_data.get("video_title", "Unknown Title")
+    user_id = video_data.get("user_id")
     
     event_to_publish = None
     if request.stage == "transcription":
+        if not user_id:
+            return JSONResponse(status_code=400, content={"message": "Cannot re-trigger transcription without a user_id."})
         await video_doc_ref.update({"status": "re-triggering transcription"})
         event_to_publish = NewVideoDetected(
             video_id=request.video_id,
             video_url=video_data.get("video_url"),
-            video_title=video_title
+            video_title=video_title,
+            user_id=user_id
         )
     elif request.stage == "analysis":
         await video_doc_ref.update({"status": "re-triggering analysis"})

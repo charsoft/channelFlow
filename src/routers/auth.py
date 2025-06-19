@@ -160,4 +160,17 @@ async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(g
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to exchange authorization code."
-        ) 
+        )
+
+@router.get("/api/auth/youtube/status")
+async def get_youtube_auth_status(current_user: dict = Depends(get_current_user)):
+    """
+    Checks if the current user has valid YouTube credentials stored.
+    """
+    user_id = current_user.get("uid")
+    cred_doc = await db.collection("user_credentials").document(user_id).get()
+    
+    if cred_doc.exists:
+        return {"isConnected": True}
+    
+    return {"isConnected": False} 

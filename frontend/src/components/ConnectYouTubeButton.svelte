@@ -1,10 +1,10 @@
 <!-- src/components/ConnectYouTubeButton.svelte -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   import Swal from 'sweetalert2';
   import { exchangeAuthCode } from '../lib/api';
 
-  export let onConnected: () => void;
+  const dispatch = createEventDispatcher();
   let clientId: string | null = null;
 
   onMount(async () => {
@@ -31,7 +31,7 @@
         try {
           await exchangeAuthCode(response.code);
           Swal.fire('Connected!', 'Your YouTube account is now linked.', 'success');
-          onConnected();
+          dispatch('connected');
         } catch (err: any) {
           Swal.fire('Oops', err.message || 'Could not connect YouTube.', 'error');
         }

@@ -88,6 +88,39 @@ export function listenForUpdates(videoId: string) {
   return es;
 }
 
+export async function retriggerStage(videoId: string, stage: string): Promise<void> {
+  const res = await fetch('/api/re-trigger', {
+    method: 'POST',
+    headers: await getHeaders(),
+    body: JSON.stringify({ video_id: videoId, stage: stage.toLowerCase() })
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || `Failed to re-trigger stage ${stage}`);
+  }
+}
+
+export async function checkYouTubeConnection(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/auth/youtube/status', {
+      method: 'GET',
+      headers: await getHeaders()
+    });
+    if (!res.ok) {
+      // If we get a 401, it just means the user isn't logged in, which is fine.
+      if (res.status === 401) return false;
+      // For other errors, log them but treat as not connected.
+      console.error(`API Error (${res.status}):`, await res.text());
+      return false;
+    }
+    const data = await res.json();
+    return data.isConnected === true;
+  } catch (err) {
+    console.error("Network or other error checking YouTube status:", err);
+    return false;
+  }
+}
+
 export async function exchangeAuthCode(code: string): Promise<void> {
     const res = await fetch('/api/oauth/exchange-code', {
         method: 'POST',

@@ -40,7 +40,8 @@ class IngestionAgent:
         self.api_key = api_key
         self.channel_id = channel_id
         self.youtube = build('youtube', 'v3', developerKey=self.api_key)
-        event_bus.subscribe(NewVideoDetected, self.handle_new_video)
+        # This agent should not be a listener. It is called directly.
+        # event_bus.subscribe(NewVideoDetected, self.handle_new_video)
 
     async def process_single_video(self, video_url: str):
         """Processes a single video URL provided on demand."""
@@ -201,13 +202,20 @@ class IngestionAgent:
         video_doc_ref = db.collection("videos").document(event.video_id)
         doc = await video_doc_ref.get()
         if not doc.exists:
-            await video_doc_ref.set({
+            # Prepare the data, including the user_id if it exists
+            initial_data = {
                 "video_id": event.video_id,
                 "video_url": event.video_url,
                 "video_title": event.video_title,
                 "status": "new",
-                "received_at": firestore.SERVER_TIMESTAMP
-            })
+                "received_at": firestore.SERVER_TIMESTAMP,
+                "user_id": event.user_id
+            }
+            # Remove user_id if it's None to keep the document clean
+            if initial_data["user_id"] is None:
+                del initial_data["user_id"]
+
+            await video_doc_ref.set(initial_data)
             print(f"   Saved initial data for {event.video_id} to Firestore.")
         else:
             print(f"   Document for {event.video_id} already exists. Skipping initial save.")

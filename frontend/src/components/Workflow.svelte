@@ -1,6 +1,10 @@
 <!-- src/components/Workflow.svelte -->
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
   import { videoStatus } from '../lib/stores';
+
+  export let retriggerable = false;
+  const dispatch = createEventDispatcher();
 
   const agents = ['Ingestion', 'Transcription', 'Analysis', 'Copywriting', 'Visuals', 'Publisher'];
 
@@ -54,13 +58,23 @@
   <h3 class="text-lg font-semibold mb-4 text-gray-700">Live Workflow</h3>
   <div class="workflow-container">
     {#each agents as agent, i}
-      <div
-        class="workflow-step"
-        class:active={agentStates[agent] === 'active'}
-        class:completed={agentStates[agent] === 'completed'}
-        class:failed={agentStates[agent] === 'failed'}
-      >
-        {agent}
+      <div class="workflow-step-container">
+        <div
+          class="workflow-step"
+          class:active={agentStates[agent] === 'active'}
+          class:completed={agentStates[agent] === 'completed'}
+          class:failed={agentStates[agent] === 'failed'}
+        >
+          {agent}
+        </div>
+        {#if retriggerable && (agentStates[agent] === 'completed' || agentStates[agent] === 'failed')}
+          <button 
+            class="retrigger-button" 
+            on:click={() => dispatch('retrigger', { stage: agent })}
+          >
+            Re-run
+          </button>
+        {/if}
       </div>
       {#if i < agents.length - 1}
         <div 
@@ -121,5 +135,22 @@
   }
   .workflow-arrow.completed {
     border-left-color: #166534; /* text-green-800 */
+  }
+  .workflow-step-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .retrigger-button {
+    font-size: 0.75rem;
+    padding: 0.1rem 0.5rem;
+    margin-top: 0.5rem;
+    border: 1px solid #9ca3af;
+    border-radius: 0.25rem;
+    background-color: #f3f4f6;
+    cursor: pointer;
+  }
+  .retrigger-button:hover {
+    background-color: #e5e7eb;
   }
 </style>

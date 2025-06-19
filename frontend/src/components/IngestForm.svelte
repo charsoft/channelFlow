@@ -21,25 +21,30 @@
       const { exists, video_id } = await checkVideo(youtubeUrl);
 
       if (exists && video_id) {
-        // Prompt user: reprocess or just view  
-        const res = await Swal.fire({
-          title: 'Video Already Processed',
-          text: 'Would you like to reprocess it or view existing results?',
-          icon: 'question',     
+        const result = await Swal.fire({
+          title: 'Video Exists',
+          text: "This video has been processed before. What would you like to do?",
+          icon: 'question',
           showDenyButton: true,
-          confirmButtonText: 'Reprocess',    
-          denyButtonText: 'View Existing'
+          showCancelButton: true,
+          confirmButtonText: 'Restart from Scratch',
+          denyButtonText: 'Resume / View Progress',
+          cancelButtonText: 'Cancel'
         });
 
-        if (res.isDenied) {
+        if (result.isConfirmed) {
+          // Fall through to reprocess from scratch
+        } else if (result.isDenied) {
+          // Dispatch to view the video detail/resume page
           dispatch('view', { videoId: video_id });
           return;
+        } else {
+          // User clicked Cancel or closed the dialog
+          return;
         }
-        // else fall through to reprocess
       }
 
-      // 3) Either brand-new video, or user chose Reprocess
-      // Note: `sendIngest` now gets the token from the store automatically
+      // 3) Either a brand-new video, or user chose "Restart from Scratch"
       const newId = await sendIngest(youtubeUrl, true);
       dispatch('new-ingestion', { videoId: newId });
     }
