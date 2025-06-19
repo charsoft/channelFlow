@@ -5,7 +5,6 @@
   import { accessToken, setAccessToken, clearAccessToken } from '../lib/auth';
   import { loginWithGoogle } from '../lib/api';
 
-  let gsiReady = false;
   let clientId: string;
 
   function loadGsiScript(): Promise<void> {
@@ -70,36 +69,24 @@
             Swal.fire('Login failed', e.message, 'error');
           }
         },
-        ux_mode: 'popup',
         auto_select: false
       });
       
-      // Render the button, but it will be disabled until gsiReady is true
-      google.accounts.id.renderButton(
-        document.createElement('div'), // Create a dummy element
-        { theme: "outline", size: "large" } 
-      );
+      const buttonContainer = document.getElementById('gsi-button-container');
+      if (buttonContainer) {
+        google.accounts.id.renderButton(
+          buttonContainer,
+          { theme: "outline", size: "large" } 
+        );
+      }
 
       console.info('[AuthButton DBG]: GSI initialization complete.');
 
-      gsiReady = true;
-      console.log('[AuthButton DBG]: gsiReady is now true.');
     } catch (err: any) {
       console.error('[AuthButton DBG]: A critical error occurred during onMount setup.', err);
       Swal.fire('Error', err.message, 'error');
     }
   });
-
-  function handleLogin() {
-    console.log('[AuthButton DBG]: handleLogin() called.');
-    if (!gsiReady || !window.google || !window.google.accounts || !window.google.accounts.id) {
-      console.warn('[AuthButton DBG]: Login clicked, but GSI is not ready.');
-      Swal.fire('Error', 'Google Sign-In is not ready. Please wait a moment.', 'error');
-      return;
-    }
-    console.info('[AuthButton DBG]: Calling google.accounts.id.prompt().');
-    google.accounts.id.prompt();
-  }
 
   function handleLogout() {
     console.log('[AuthButton DBG]: handleLogout() called.');
@@ -111,7 +98,5 @@
 {#if $accessToken}
     <button on:click={handleLogout} class="button-secondary">Logout</button>
 {:else}
-    <button on:click={handleLogin} class="button-primary" disabled={!gsiReady}>
-        {#if !gsiReady}Initializing...{:else}Sign in with Google{/if}
-    </button>
+    <div id="gsi-button-container"></div>
 {/if}

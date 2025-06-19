@@ -119,7 +119,7 @@ async def startup_event():
         api_key=gemini_api_key, 
         bucket_name=gcs_bucket_name,
         ffmpeg_path=ffmpeg_path,
-        model_name="gemini-1.5-pro-latest"
+        model_name=gemini_model_name
     )
     AnalysisAgent(api_key=gemini_api_key, bucket_name=gcs_bucket_name, model_name=gemini_model_name)
     CopywriterAgent(api_key=gemini_api_key, bucket_name=gcs_bucket_name, model_name=gemini_model_name)

@@ -30,6 +30,7 @@ venv/
 firebase.json.local
 firebase.log
 
-
+#keys
+service_account.*.json
 
 terraform/terraform.tfvars

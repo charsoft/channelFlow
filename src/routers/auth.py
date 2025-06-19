@@ -95,7 +95,7 @@ async def google_login(request: GoogleLoginRequest):
         print(f"Error during Google login: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred during login."
+            detail=f"An unexpected error occurred during login: {e}"
         )
 
 @router.get("/api/config", response_model=ClientConfig)
