@@ -1,5 +1,53 @@
+# Git
 .git
 .gitignore
+
+# Docker
+Dockerfile
+
+# Node
+node_modules
+frontend/node_modules
+npm-debug.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# IDE / OS files
+.vscode/
+.idea/
+*.DS_Store
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Secrets and credentials
+.env
+*.tfstate
+*.tfstate.backup
+secrets.yaml
+# Terraform
+terraform/
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+
+# Miscellaneous
+LICENSE
+README.md
+*.png
+*.jpeg
+*.jpg
+*.gif
+*.svg
+
 .venv
 __pycache__
 *.pyc
