@@ -49,8 +49,11 @@
 
   {#if $accessToken}
     {#if isYouTubeConnected}
-      <div class="youtube-connected-status">
-        <span class="dot-green"></span> YouTube Account Connected
+      <div class="ingestion-controls">
+        <div class="youtube-connected-status">
+          <span class="dot-green"></span> YouTube Account Connected
+        </div>
+        <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleView} />
       </div>
     {:else}
       <div class="youtube-connect-prompt">
@@ -59,8 +62,6 @@
       </div>
     {/if}
   {/if}
-
-  <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleView} />
 
   {#if $videoStatus}
     <StatusLog />
@@ -78,16 +79,23 @@
 {/if}
 
 <style>
+  .ingestion-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
   .youtube-connected-status {
     display: flex;
     align-items: center;
     padding: 0.75rem 1rem;
-    margin-bottom: 1.5rem;
     background-color: #f0fdf4; /* green-50 */
     border: 1px solid #bbf7d0; /* green-200 */
     border-radius: 0.5rem;
     color: #166534; /* green-800 */
     font-weight: 500;
+    flex-shrink: 0; /* Prevent this from shrinking */
   }
   .dot-green {
     width: 0.75rem;
@@ -96,4 +104,4 @@
     border-radius: 9999px;
     margin-right: 0.75rem;
   }
-</style> 
+</style>

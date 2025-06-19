@@ -17,3 +17,13 @@ declare module '*.png' {
   const value: string;
   export default value;
 }
+
+declare namespace google {
+  namespace accounts {
+    namespace id {
+      function initialize(config: any): void;
+      function prompt(): void;
+      function renderButton(parent: HTMLElement, options: any): void;
+    }
+  }
+}

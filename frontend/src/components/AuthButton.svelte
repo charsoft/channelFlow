@@ -73,6 +73,13 @@
         ux_mode: 'popup',
         auto_select: false
       });
+      
+      // Render the button, but it will be disabled until gsiReady is true
+      google.accounts.id.renderButton(
+        document.createElement('div'), // Create a dummy element
+        { theme: "outline", size: "large" } 
+      );
+
       console.info('[AuthButton DBG]: GSI initialization complete.');
 
       gsiReady = true;
@@ -85,7 +92,7 @@
 
   function handleLogin() {
     console.log('[AuthButton DBG]: handleLogin() called.');
-    if (!gsiReady) {
+    if (!gsiReady || !window.google || !window.google.accounts || !window.google.accounts.id) {
       console.warn('[AuthButton DBG]: Login clicked, but GSI is not ready.');
       Swal.fire('Error', 'Google Sign-In is not ready. Please wait a moment.', 'error');
       return;
@@ -105,6 +112,6 @@
     <button on:click={handleLogout} class="button-secondary">Logout</button>
 {:else}
     <button on:click={handleLogin} class="button-primary" disabled={!gsiReady}>
-        {#if !gsiReady}Initializing...{:else}Login with Google{/if}
+        {#if !gsiReady}Initializing...{:else}Sign in with Google{/if}
     </button>
 {/if}

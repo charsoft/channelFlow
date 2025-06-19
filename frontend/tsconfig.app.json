@@ -14,7 +14,10 @@
     "allowJs": true,
     "checkJs": true,
     "isolatedModules": true,
-    "moduleDetection": "force"
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
 }
