@@ -144,7 +144,7 @@ async def ingest_url(request: IngestUrlRequest, current_user: dict = Depends(get
         print(f"Error in /ingest-url: {e}\n{traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"message": "An internal error occurred."})
 
-@router.get("/status/{video_id}")
+@router.get("/api/status/{video_id}")
 async def get_status(video_id: str):
     video_doc_ref = db.collection("videos").document(video_id)
     doc = await video_doc_ref.get()
@@ -158,7 +158,7 @@ async def get_status(video_id: str):
     
     return JSONResponse(status_code=200, content={"data": data})
 
-@router.get("/stream-status/{video_id}")
+@router.get("/api/stream-status/{video_id}")
 async def stream_status(request: Request, video_id: str):
     async def event_generator():
         last_known_status = None
