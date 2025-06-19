@@ -237,20 +237,24 @@ async def re_trigger(request: RetriggerRequest):
         event_to_publish = TranscriptReady(
             video_id=request.video_id,
             video_title=video_title,
-            transcript_gcs_uri=video_data.get("transcript_gcs_uri")
+            transcript_gcs_uri=video_data.get("transcript_gcs_uri"),
+            user_id=user_id
         )
     elif request.stage == "copywriting":
         await video_doc_ref.update({"status": "re-triggering copywriting"})
         event_to_publish = ContentAnalysisComplete(
             video_id=request.video_id,
             video_title=video_title,
-            structured_data=video_data.get("structured_data")
+            structured_data=video_data.get("structured_data"),
+            user_id=user_id
         )
     elif request.stage == "visuals":
         await video_doc_ref.update({"status": "re-triggering visuals"})
         event_to_publish = CopyReady(
             video_id=request.video_id,
-            video_title=video_title
+            video_title=video_title,
+            copy_gcs_uri=video_data.get("substack_gcs_uri"),
+            user_id=user_id
         )
         
     if event_to_publish:
