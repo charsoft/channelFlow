@@ -38,7 +38,7 @@ class TranscriptionAgent:
             update_data.update(data)
         await doc_ref.update(update_data)
 
-    def handle_new_video(self, event: NewVideoDetected):
+    async def handle_new_video(self, event: NewVideoDetected):
         """Synchronous wrapper to schedule the async processing task."""
         asyncio.create_task(self.process_video(event))
 
