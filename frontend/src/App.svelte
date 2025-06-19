@@ -6,21 +6,17 @@
   import PreviousVideos  from './components/PreviousVideos.svelte';
   import ConnectYouTubeButton from './components/ConnectYouTubeButton.svelte';
   import { accessToken } from './lib/auth';
+  import { videoStatus } from './lib/stores';
+  import { listenForUpdates } from './lib/api';
   import logoUrl from './assets/channel-flow-logo.png';
 
-  let currentVideoId: string | null = null;
-  let activeAgent: string = '';
-  let showLog: boolean = false;
-  let logKey = 0;
-  
-  // A simple check to see if the user has connected YouTube.
-  // In a real app, this would be a more robust check against the backend.
   let isYouTubeConnected = false; 
 
   function handleNewIngestion(e: CustomEvent) {
-    currentVideoId = e.detail.videoId;
-    showLog = true;
-    logKey += 1; // Increment the key to force re-render
+    const videoId = e.detail.videoId;
+    if (videoId) {
+      listenForUpdates(videoId);
+    }
   }
 
   function handleView(e: CustomEvent) {
@@ -76,16 +72,14 @@
 
     <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleView} />
 
-    {#if showLog && currentVideoId}
-      {#key logKey}
-        <StatusLog {currentVideoId} />
-      {/key}
+    {#if $videoStatus}
+      <StatusLog />
     {/if}
   </div>
 
   <div class="workflow-column">
     <h2 class="mb-4">Agentic Workflow</h2>
-    <Workflow {activeAgent} />
+    <Workflow />
   </div>
 
   <!-- Previously processed videos -->

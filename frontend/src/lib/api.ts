@@ -1,6 +1,7 @@
 // src/lib/api.ts
 import { get } from 'svelte/store';
 import { accessToken } from './auth';
+import { videoStatus, statusHistory, resetStores } from './stores';
 
 async function getHeaders() {
     const token = get(accessToken);
@@ -54,27 +55,37 @@ export async function sendIngest(
     return json.video_id;
 }
 
-export function listenForUpdates(
-    videoId: string,
-    onMessage: (data: any) => void,
-    onError: () => void
-): EventSource {
-    const token: string = get(accessToken) || '';
-    // Note: EventSource doesn't support custom headers, so we pass the token as a query param.
-    // The backend needs to be adapted to handle this for the /api/events/{videoId} endpoint.
-    const es = new EventSource(`/api/events/${videoId}?token=${encodeURIComponent(token)}`);
-    es.onmessage = e => {
-        try {
-            onMessage(JSON.parse(e.data));
-        } catch (err) {
-            console.error('Failed to parse SSE message', err);
-        }
-    };
-    es.onerror = () => {
-        es.close();
-        onError();
-    };
-    return es;
+let eventSource: EventSource | null = null;
+
+export function listenForUpdates(videoId: string) {
+  // Close any existing connection
+  if (eventSource) {
+    eventSource.close();
+  }
+
+  // Clear old data from the stores
+  resetStores();
+  
+  const es = new EventSource(`/api/stream-status/${videoId}`);
+  
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      videoStatus.set(data);
+      statusHistory.update(currentHistory => [...currentHistory, data]);
+    } catch (err) {
+      console.error('Failed to parse SSE message', err);
+    }
+  };
+
+  es.onerror = (err) => {
+    console.error('EventSource failed:', err);
+    es.close();
+    // Here you could set an error state in a store if needed
+  };
+  
+  eventSource = es;
+  return es;
 }
 
 export async function exchangeAuthCode(code: string): Promise<void> {
