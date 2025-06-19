@@ -173,4 +173,21 @@ async def get_youtube_auth_status(current_user: dict = Depends(get_current_user)
     if cred_doc.exists:
         return {"isConnected": True}
     
-    return {"isConnected": False} 
+    return {"isConnected": False}
+
+@router.post("/api/auth/youtube/disconnect")
+async def disconnect_youtube_account(current_user: dict = Depends(get_current_user)):
+    """
+    Disconnects the user's YouTube account by deleting their stored credentials.
+    """
+    user_id = current_user.get("uid")
+    try:
+        cred_doc_ref = db.collection("user_credentials").document(user_id)
+        await cred_doc_ref.delete()
+        return {"message": "Successfully disconnected YouTube account."}
+    except Exception as e:
+        print(f"Error disconnecting YouTube account for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while disconnecting the account."
+        ) 

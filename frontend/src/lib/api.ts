@@ -149,3 +149,15 @@ export async function loginWithGoogle(idTokenFromGoogle: string): Promise<string
     return payload.access_token;
 }
 
+export async function disconnectYouTube(): Promise<void> {
+    const res = await fetch('/api/auth/youtube/disconnect', {
+        method: 'POST',
+        headers: await getHeaders(),
+    });
+
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to disconnect YouTube account.');
+    }
+}
+
