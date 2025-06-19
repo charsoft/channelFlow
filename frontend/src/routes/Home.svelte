@@ -11,9 +11,10 @@
   import { push } from 'svelte-spa-router';
 
   let isYouTubeConnected = false;
+  let testing = true;
 
   onMount(async () => {
-    if ($accessToken) {
+    if ($accessToken||testing) {
       isYouTubeConnected = await checkYouTubeConnection();
     }
   });
@@ -41,17 +42,17 @@
 </script>
 
 <div class="content-column">
-  <h1 class="mb-4">Amplify your message.</h1>
-  <p class="mb-6">
+  <h1 class="mb-2">Amplify your message.</h1>
+  <p class="mb-4">
     Paste a YouTube link to transform a single video into a complete,
     multi-platform marketing campaign, orchestrated by autonomous AI agents.
   </p>
-
-  {#if $accessToken}
-    {#if isYouTubeConnected}
+<p class="mb-6">
+   {#if $accessToken||testing}
+    {#if isYouTubeConnected||testing}
       <div class="ingestion-controls">
         <div class="youtube-connected-status">
-          <span class="dot-green"></span> YouTube Account Connected
+          <span class="button-success"></span> ✅
         </div>
         <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleView} />
       </div>
@@ -62,16 +63,15 @@
       </div>
     {/if}
   {/if}
+</p>
+ 
 
   {#if $videoStatus}
     <StatusLog />
   {/if}
 </div>
 
-<div class="workflow-column">
-  <h2 class="mb-4">Agentic Workflow</h2>
-  <Workflow />
-</div>
+
 
 <!-- Previously processed videos -->
 {#if $accessToken}
@@ -81,9 +81,10 @@
 <style>
   .ingestion-controls {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    /* margin-bottom: 1rem; */
+    width: 100%;
   }
 
   .youtube-connected-status {

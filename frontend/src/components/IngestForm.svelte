@@ -76,7 +76,7 @@
     required
   />
   <button type="submit" disabled={busy} class="ingest-button">
-    {#if busy}Processing…{:else}Amplify{/if}
+    {#if busy}Processing…{:else}Go{/if}
   </button>
 </form>
 
@@ -88,11 +88,16 @@
   }
 
   .url-input {
-    flex-grow: 1;
+    width: 100%;
     min-width: 0; /* Important for flexbox to allow shrinking */
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    
+
   }
 
   .ingest-button {
-    flex-shrink: 0; /* Prevent the button from shrinking */
+    flex-shrink: 1; /* Prevent the button from shrinking */
   }
 </style>

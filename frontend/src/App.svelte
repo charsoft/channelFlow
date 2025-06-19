@@ -27,8 +27,8 @@
       </a>
     </div>
     <nav class="nav-links">
-      <a href="/management" class="nav-link button-cta">Content Dashboard</a>
-      <a href="/management" class="nav-link button-cta">Maintenance</a>
+      <a href="/management" class="nav-link button-secondary">Content Dashboard</a>
+      <a href="/management" class="nav-link button-secondary">Maintenance</a>
       <div class="user-auth">
         <AuthButton />
       </div>
