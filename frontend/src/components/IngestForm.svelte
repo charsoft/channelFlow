@@ -79,3 +79,20 @@
     {#if busy}Processing…{:else}Amplify{/if}
   </button>
 </form>
+
+<style>
+  .ingest-form {
+    display: flex;
+    gap: 0.5rem; /* 8px */
+    width: 100%;
+  }
+
+  .url-input {
+    flex-grow: 1;
+    min-width: 0; /* Important for flexbox to allow shrinking */
+  }
+
+  .ingest-button {
+    flex-shrink: 0; /* Prevent the button from shrinking */
+  }
+</style>
