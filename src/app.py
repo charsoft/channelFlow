@@ -132,7 +132,7 @@ async def startup_event():
         model_name=imagen_model_name,
         gemini_model_name=gemini_model_name
     )
-    PublisherAgent()
+    PublisherAgent(bucket_name=gcs_bucket_name)
     
     print("All agents have been initialized.")
 

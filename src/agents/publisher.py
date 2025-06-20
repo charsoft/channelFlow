@@ -9,43 +9,45 @@ class PublisherAgent:
     🚚 PublisherAgent
     Purpose: To flag content as ready for review once all assets are generated.
     """
-    def __init__(self):
+    def __init__(self, bucket_name):
+        self.bucket_name = bucket_name
         event_bus.subscribe(VisualsReady, self.handle_visuals_ready)
+
+    async def _update_status(self, doc_ref, status: str, message: str, extra_data: dict = None):
+        """Helper to update status and message."""
+        update = {
+            "status": status,
+            "status_message": message
+        }
+        if extra_data:
+            update.update(extra_data)
+        await doc_ref.update(update)
 
     async def handle_visuals_ready(self, event: VisualsReady):
         """
-        This handler is triggered when visuals are ready.
-        At this point, we know the copy is also ready due to the
-        sequential nature of the event chain.
+        This is the final stage. For now, it just marks the video as "published".
+        In a real-world scenario, this would interact with YouTube's API to
+        upload shorts, update descriptions, etc.
         """
-        print(f"🚚 PublisherAgent: Received visuals ready for: {event.video_title}")
+        print(f"🚀 PublisherAgent: Received visuals for: {event.video_title}")
         video_doc_ref = db.collection("videos").document(event.video_id)
 
         try:
-            # Set status to 'publishing' immediately.
-            await video_doc_ref.update({"status": "publishing"})
+            await self._update_status(video_doc_ref, "publishing", "All assets are ready. Preparing to publish.")
+
+            # In a real implementation, this is where you would:
+            # 1. Download the generated shorts clips from GCS.
+            # 2. Use the marketing copy for titles/descriptions.
+            # 3. Authenticate with the user's YouTube account.
+            # 4. Upload the video using the YouTube Data API.
+            # For this example, we'll just simulate the final step.
             
-            doc = await video_doc_ref.get()
-            if not doc.exists:
-                print(f"   Error: Document {event.video_id} not found.")
-                return
+            print("   (Simulating final publishing step...)")
+            await asyncio.sleep(2) # Simulate network activity
 
-            video_data = doc.to_dict()
-
-            # Prevent re-processing
-            if video_data.get("status") == "ready_for_review":
-                print(f"   Content for '{event.video_title}' is already marked for review. Skipping.")
-                return
-
-            print(f"   All assets generated for {event.video_title}. Marking as 'ready_for_review'.")
-
-            await video_doc_ref.update({
-                "status": "ready_for_review",
-                "ready_for_review_at": firestore.SERVER_TIMESTAMP,
-            })
-            
-            print(f"   Successfully marked '{event.video_title}' as ready for review.")
+            await self._update_status(video_doc_ref, "published", "Content has been successfully published!")
+            print(f"   ✅ Successfully 'published' video: {event.video_title}")
 
         except Exception as e:
             print(f"❌ PublisherAgent Error: {e}")
-            await video_doc_ref.update({"status": "publishing_failed", "error": str(e)}) 
+            await self._update_status(video_doc_ref, "publishing_failed", "Failed to publish content.", {"error": str(e)}) 

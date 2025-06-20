@@ -62,7 +62,7 @@
         <div
           class="workflow-step"
           class:active={agentStates[agent] === 'active'}
-          class:completed={agentStates[agent] === 'completed'}
+          class:success={agentStates[agent] === 'completed'}
           class:failed={agentStates[agent] === 'failed'}
         >
           {agent}
@@ -107,7 +107,7 @@
     transition: all 0.3s ease;
     border: 1px solid #d1d5db; /* Default border */
   }
-  .workflow-step.completed {
+  .workflow-step.success {
     background-color: #dcfce7; /* bg-green-100 */
     color: #166534; /* text-green-800 */
     border-color: #86efac; /* border-green-300 */

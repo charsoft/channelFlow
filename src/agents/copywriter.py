@@ -20,6 +20,16 @@ class CopywriterAgent:
         self.bucket_name = bucket_name
         event_bus.subscribe(ContentAnalysisComplete, self.handle_analysis_complete)
 
+    async def _update_status(self, doc_ref, status: str, message: str, extra_data: dict = None):
+        """Helper to update status and message."""
+        update = {
+            "status": status,
+            "status_message": message
+        }
+        if extra_data:
+            update.update(extra_data)
+        await doc_ref.update(update)
+
     async def handle_analysis_complete(self, event: ContentAnalysisComplete):
         """
         Takes structured data, generates various marketing copy with Gemini,
@@ -29,7 +39,7 @@ class CopywriterAgent:
         video_doc_ref = db.collection("videos").document(event.video_id)
 
         try:
-            await video_doc_ref.update({"status": "generating_copy"})
+            await self._update_status(video_doc_ref, "generating_copy", "Received content analysis. Starting copy generation.")
 
             # 1. Check if copy already exists
             doc = await video_doc_ref.get()
@@ -48,12 +58,15 @@ class CopywriterAgent:
             if not transcript_gcs_uri:
                 raise ValueError("Transcript GCS URI not found in Firestore document.")
             
+            await self._update_status(video_doc_ref, "generating_copy", "Downloading full transcript for context...")
+            
             print(f"   Downloading transcript from: {transcript_gcs_uri}")
             bucket = self.storage_client.bucket(self.bucket_name)
             blob = bucket.blob(transcript_gcs_uri.replace(f"gs://{self.bucket_name}/", ""))
             transcript_text = await asyncio.to_thread(blob.download_as_text)
 
             # 3. Generate Copy with Gemini
+            await self._update_status(video_doc_ref, "generating_copy", "Writing copy with Gemini...")
             print("   Generating marketing copy with Gemini 1.5 Pro...")
             prompt = self._build_prompt(event.structured_data, transcript_text)
             response = await self.model.generate_content_async(
@@ -93,7 +106,8 @@ class CopywriterAgent:
             # 5. Save the rest of the copy and the new URI to Firestore
             update_data = {
                 "marketing_copy": copy_assets, # Now without the Substack article
-                "status": "copy_generated"
+                "status": "copy_generated",
+                "status_message": "Marketing copy created and saved."
             }
             if substack_gcs_uri:
                 update_data["substack_gcs_uri"] = substack_gcs_uri
@@ -112,7 +126,7 @@ class CopywriterAgent:
 
         except Exception as e:
             print(f"❌ CopywriterAgent Error: {e}")
-            await video_doc_ref.update({"status": "generating_copy_failed", "error": str(e)})
+            await self._update_status(video_doc_ref, "generating_copy_failed", "Failed to generate marketing copy.", {"error": str(e)})
 
     def _build_prompt(self, structured_data: dict, transcript: str) -> str:
         # Pretty print the JSON for better readability in the prompt

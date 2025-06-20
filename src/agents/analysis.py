@@ -19,6 +19,16 @@ class AnalysisAgent:
         self.bucket_name = bucket_name
         event_bus.subscribe(TranscriptReady, self.handle_transcript_ready)
 
+    async def _update_status(self, doc_ref, status: str, message: str, extra_data: dict = None):
+        """Helper to update status and message."""
+        update = {
+            "status": status,
+            "status_message": message
+        }
+        if extra_data:
+            update.update(extra_data)
+        await doc_ref.update(update)
+
     async def handle_transcript_ready(self, event: TranscriptReady):
         """
         Downloads a transcript from GCS, analyzes it with Gemini, and saves the
@@ -28,7 +38,7 @@ class AnalysisAgent:
         video_doc_ref = db.collection("videos").document(event.video_id)
 
         try:
-            await video_doc_ref.update({"status": "analyzing"})
+            await self._update_status(video_doc_ref, "analyzing", "Starting content analysis.")
             
             doc = await video_doc_ref.get()
             video_data = doc.to_dict()
@@ -50,6 +60,8 @@ class AnalysisAgent:
             if not transcript_gcs_uri:
                 raise ValueError("Transcript GCS URI not found in Firestore document.")
             
+            await self._update_status(video_doc_ref, "analyzing", f"Downloading transcript from GCS...")
+            
             print(f"   Downloading transcript from: {transcript_gcs_uri}")
             bucket = self.storage_client.bucket(self.bucket_name)
             blob = bucket.blob(transcript_gcs_uri.replace(f"gs://{self.bucket_name}/", ""))
@@ -59,6 +71,7 @@ class AnalysisAgent:
             transcript_data = json.loads(transcript_json_string)
 
             # 2. Analyze with Gemini
+            await self._update_status(video_doc_ref, "analyzing", "Generating insights with Gemini...")
             print("   Analyzing transcript with Gemini 1.5 Pro for shorts candidates...")
             prompt = self._build_prompt(transcript_data)
             response = await self.model.generate_content_async(
@@ -80,7 +93,8 @@ class AnalysisAgent:
             await video_doc_ref.update({
                 "analysis_gcs_uri": f"gs://{self.bucket_name}/{analysis_path_gcs}",
                 "structured_data": analysis_results,
-                "status": "analyzed"
+                "status": "analyzed",
+                "status_message": "Analysis complete. Content insights created."
             })
             print("   Analysis artifacts saved to Firestore.")
 
@@ -94,7 +108,7 @@ class AnalysisAgent:
 
         except Exception as e:
             print(f"❌ AnalysisAgent Error: {e}")
-            await video_doc_ref.update({"status": "analyzing_failed", "error": str(e)})
+            await self._update_status(video_doc_ref, "analyzing_failed", "Failed to analyze content.", {"error": str(e)})
 
     def _build_prompt(self, transcript_data: dict) -> str:
         # We now pass the full transcript text to the prompt

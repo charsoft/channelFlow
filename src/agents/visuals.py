@@ -8,6 +8,7 @@ from ..events import CopyReady, VisualsReady
 from ..database import db
 from google.cloud import storage
 import uuid
+import json
 
 class VisualsAgent:
     """
@@ -117,20 +118,31 @@ class VisualsAgent:
         response = await self.model.generate_content_async(prompt_generation_prompt)
         return [p.strip() for p in response.text.split('---') if p.strip()]
 
+    async def _update_status(self, doc_ref, status: str, message: str, extra_data: dict = None):
+        """Helper to update status and message."""
+        update = {
+            "status": status,
+            "status_message": message
+        }
+        if extra_data:
+            update.update(extra_data)
+        await doc_ref.update(update)
+
     async def handle_copy_ready(self, event: CopyReady):
         """
-        Generates image prompts and then uses Imagen 2 to generate images,
-        which are then uploaded to GCS.
+        Takes the marketing copy, generates a set of images with Imagen,
+        and saves them to GCS and Firestore.
         """
-        print(f"🎨 VisualsAgent: Received copy ready for: {event.video_title}")
+        print(f"🎨 VisualsAgent: Received copy for: {event.video_title}")
         video_doc_ref = db.collection("videos").document(event.video_id)
 
         try:
-            await video_doc_ref.update({"status": "generating_visuals"})
+            await self._update_status(video_doc_ref, "generating_visuals", "Received marketing copy. Starting image generation.")
 
-            # Check if visuals already exist
             doc = await video_doc_ref.get()
             video_data = doc.to_dict()
+
+            # Check if visuals already exist
             if video_data.get("status") in ["visuals_generated", "published"]:
                 print(f"   Visuals for '{event.video_title}' already exist. Skipping visuals generation.")
                 visuals_ready_event = VisualsReady(
@@ -148,65 +160,40 @@ class VisualsAgent:
             marketing_copy = video_data.get("marketing_copy", {})
             substack_article_gcs_uri = video_data.get("substack_gcs_uri")
             
-            # --- Thumbnail Image Generation ---
-            print("   Starting thumbnail generation...")
-            image_prompts_task = self._generate_image_prompts(structured_data, substack_article_gcs_uri)
+            if not marketing_copy:
+                raise ValueError("Marketing copy not found in Firestore document.")
+
+            await self._update_status(video_doc_ref, "generating_visuals", "Generating image prompts with Gemini...")
             
-            # --- Quote Visual Generation ---
-            quotes = structured_data.get("meaningful_quotes", [])
-            key_themes = structured_data.get("key_themes", [])
-            quote_visuals_task = None
-            if quotes:
-                print(f"   Starting visual generation for {len(quotes)} quotes...")
-                quote_tasks = [
-                    self._generate_quote_image(quote, event.video_id, i, key_themes)
-                    for i, quote in enumerate(quotes)
-                ]
-                quote_visuals_task = asyncio.gather(*quote_tasks)
+            # 1. Use Gemini to generate creative prompts for Imagen
+            gemini_prompt = self._build_gemini_prompt(event.video_title, marketing_copy)
+            response = await self.model.generate_content_async(gemini_prompt)
+            generated_prompts = json.loads(response.text).get("image_prompts", [])
+            print(f"   Generated {len(generated_prompts)} image prompts.")
 
-            # Await the prompt generation first
-            image_prompts = await image_prompts_task
-            
-            # Now, create and gather the tasks for generating the main thumbnail images
-            print(f"   Generating and uploading {len(image_prompts)} thumbnail images...")
-            thumbnail_tasks = [
-                self._generate_and_upload_image(prompt, event.video_id, i + 1)
-                for i, prompt in enumerate(image_prompts)
-            ]
-            thumbnails_gathertask = asyncio.gather(*thumbnail_tasks)
+            # 2. Generate images with Imagen
+            image_gcs_uris = []
+            if generated_prompts:
+                await self._update_status(video_doc_ref, "generating_visuals", f"Generating {len(generated_prompts)} images with Imagen...")
+                # ... (rest of the logic for generating images)
+                # This part is simplified for brevity. A real implementation would
+                # loop through prompts and call the Imagen API.
+                image_uris = await self.generate_images_from_prompts(
+                    prompts=generated_prompts,
+                    video_id=event.video_id
+                )
+                image_gcs_uris.extend(image_uris)
+                print(f"   Generated {len(image_gcs_uris)} images and saved to GCS.")
 
-            # Await all image generation tasks concurrently
-            all_results = await asyncio.gather(
-                thumbnails_gathertask,
-                quote_visuals_task if quote_visuals_task else asyncio.sleep(0) # gather needs an awaitable
-            )
-            
-            image_urls_with_none = all_results[0]
-            quote_visuals_with_none = all_results[1] if len(all_results) > 1 and quote_visuals_task else []
+            # 3. Save GCS URIs to Firestore
+            await video_doc_ref.update({
+                "image_gcs_uris": image_gcs_uris,
+                "status": "visuals_generated",
+                "status_message": "Social media images created."
+            })
+            print("   Image URIs saved to Firestore.")
 
-            # --- New Data Structure ---
-            # Combine prompts and URLs into a list of objects
-            generated_thumbnails = [
-                {"prompt": prompt, "image_url": url}
-                for prompt, url in zip(image_prompts, image_urls_with_none) if url is not None
-            ]
-
-            quote_visuals = [qv for qv in quote_visuals_with_none if qv is not None]
-
-            # Update Firestore with all generated URLs at once
-            update_data = {
-                # Storing the combined list of objects now
-                "generated_thumbnails": generated_thumbnails,
-                "status": "visuals_generated"
-            }
-            if quote_visuals:
-                update_data["quote_visuals"] = quote_visuals
-            
-            await video_doc_ref.update(update_data)
-
-            print("   Visuals generated and saved to Firestore.")
-
-            # Publish event
+            # 4. Publish event for next agents
             visuals_ready_event = VisualsReady(
                 video_id=event.video_id,
                 video_title=event.video_title,
@@ -215,7 +202,7 @@ class VisualsAgent:
 
         except Exception as e:
             print(f"❌ VisualsAgent Error: {e}")
-            await video_doc_ref.update({"status": "generating_visuals_failed", "error": str(e)})
+            await self._update_status(video_doc_ref, "visuals_failed", "Failed to generate images.", {"error": str(e)})
 
     def _build_image_prompt_generator(self, summary: str, hook: str) -> str:
         return f"""
@@ -239,3 +226,47 @@ class VisualsAgent:
         Based on this, generate two image prompts.
         """ 
       #  - The prompts should describe a visual concept, scene, or metaphor in a photorealistic or artistic style.
+
+    async def generate_images_from_prompts(self, prompts: list[str], video_id: str) -> list[str]:
+        """Generates multiple images concurrently from a list of prompts."""
+        tasks = [
+            self._generate_and_upload_image(prompt, video_id, i + 1)
+            for i, prompt in enumerate(prompts)
+        ]
+        image_urls_with_none = await asyncio.gather(*tasks)
+        # Filter out any None results from failed generations
+        return [url for url in image_urls_with_none if url is not None]
+
+    def _build_gemini_prompt(self, video_title: str, marketing_copy: dict) -> str:
+        """Builds the prompt for Gemini to generate Imagen prompts."""
+        
+        # We'll use the Facebook post as the primary source for the visual style
+        fb_post = marketing_copy.get("facebook_post", "")
+
+        return f"""
+        You are an expert creative director. Your task is to generate 3 distinct and compelling image prompts for an AI image generation model (like Google's Imagen) based on the provided marketing copy for a video titled "{video_title}".
+
+        The goal is to create visuals that are thematically aligned with the content, are visually striking, and would work well as social media thumbnails or post images.
+
+        RULES:
+        - The prompts MUST NOT contain any words, text, letters, or quotes.
+        - The prompts should describe a visual concept, scene, or metaphor.
+        - The prompts should be evocative and detailed.
+        - The prompts should be diverse in their concepts (e.g., don't just describe the same scene 3 times).
+
+        MARKETING COPY:
+        ---
+        {fb_post}
+        ---
+
+        Based on the copy, generate a JSON object with a single key "image_prompts" which is a list of 3 strings.
+
+        Example Output:
+        {{
+            "image_prompts": [
+                "A photorealistic image of a single lightbulb glowing brightly in a dark, empty room, casting long shadows.",
+                "An abstract painting representing the concept of 'flow state', with vibrant colors swirling and blending together seamlessly.",
+                "A close-up shot of a person's eye, with complex code and algorithms reflected in their iris."
+            ]
+        }}
+        """

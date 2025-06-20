@@ -48,6 +48,11 @@ class TranscriptionAgent:
         update_data = {"status": status, "updated_at": datetime.utcnow()}
         if data:
             update_data.update(data)
+        
+        # Add a default status message if one isn't provided
+        if "status_message" not in update_data:
+            update_data["status_message"] = f"Processing stage: {status}"
+            
         await doc_ref.update(update_data)
 
     async def handle_new_video(self, event: NewVideoDetected):
@@ -61,7 +66,11 @@ class TranscriptionAgent:
             if not video_gcs_uri:
                 raise FileNotFoundError("Could not locate or download the video file.")
 
-            await self.update_video_status(event.video_id, "transcribing")
+            await self.update_video_status(
+                event.video_id, 
+                "transcribing", 
+                {"status_message": "Starting transcription with Gemini..."}
+            )
 
             print(f"   Passing GCS URI '{video_gcs_uri}' to Gemini for transcription...")
 
@@ -102,7 +111,11 @@ class TranscriptionAgent:
             await self.update_video_status(
                 event.video_id,
                 "transcribed",
-                {"transcript_gcs_uri": transcript_gcs_uri, "original_video_gcs_uri": video_gcs_uri}
+                {
+                    "transcript_gcs_uri": transcript_gcs_uri, 
+                    "original_video_gcs_uri": video_gcs_uri,
+                    "status_message": "Transcription complete. Saved to cloud."
+                }
             )
 
             await event_bus.publish(TranscriptReady(
@@ -113,7 +126,11 @@ class TranscriptionAgent:
 
         except Exception as e:
             print(f"❌ TranscriptionAgent Error: {e}")
-            await self.update_video_status(event.video_id, "transcription_failed", {"error": str(e)})
+            await self.update_video_status(
+                event.video_id, 
+                "transcription_failed", 
+                {"error": str(e), "status_message": "Failed to transcribe video."}
+            )
 
 
     async def _get_video_gcs_uri(self, event: NewVideoDetected) -> (str, storage.Blob):
@@ -187,7 +204,10 @@ class TranscriptionAgent:
                     await self.update_video_status(
                         event.video_id,
                         "auth_failed",
-                        {"error": "Failed to refresh YouTube authentication token. Please reconnect your account."}
+                        {
+                            "error": "Failed to refresh YouTube authentication token. Please reconnect your account.",
+                            "status_message": "Authentication with YouTube failed."
+                        }
                     )
                     return {}
 

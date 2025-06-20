@@ -79,6 +79,7 @@ class IngestionAgent:
                 "video_title": video_title,
                 "video_url": video_url,
                 "status": "ingested",
+                "status_message": f"Successfully ingested video: {video_title}",
                 "created_at": datetime.utcnow(),
             })
 
@@ -125,6 +126,7 @@ class IngestionAgent:
                             "video_title": video_title,
                             "video_url": video_url,
                             "status": "ingested",
+                            "status_message": f"New video found on channel: {video_title}",
                             "created_at": datetime.utcnow(),
                         })
 
@@ -208,6 +210,7 @@ class IngestionAgent:
                 "video_url": event.video_url,
                 "video_title": event.video_title,
                 "status": "new",
+                "status_message": "Received new video request.",
                 "received_at": firestore.SERVER_TIMESTAMP,
                 "user_id": event.user_id
             }
