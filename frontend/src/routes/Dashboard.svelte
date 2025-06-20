@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import Swal from 'sweetalert2';
+  import { accessToken } from '../lib/auth';
 
   interface Video {
     video_id: string;
@@ -23,6 +24,11 @@
   let activeMenu = ''; // Holds the video_id of the active menu
 
   onMount(async () => {
+    if (!$accessToken) {
+      push('/'); // Redirect to home if not logged in
+      return;
+    }
+
     try {
       const response = await fetch('/api/videos');
       if (!response.ok) {

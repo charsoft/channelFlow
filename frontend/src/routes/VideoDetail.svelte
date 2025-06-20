@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { push } from 'svelte-spa-router';
   import Swal from 'sweetalert2';
   import { marked } from 'marked';
+  import { accessToken } from '../lib/auth';
 
   import { listenForUpdates } from '../lib/api';
   import { sanitizeTitleForFilename } from '../lib/utils';
@@ -42,6 +44,10 @@
 
   // --- Lifecycle ---
   onMount(() => {
+    if (!$accessToken) {
+      push('/');
+      return;
+    }
     loadVideoDetails();
   });
 
@@ -461,7 +467,6 @@
             <ShortsCandidates
                 candidates={videoData.structured_data?.shorts_candidates || []}
                 videoId={videoData.video_id}
-                videoTitle={videoData.video_title}
             />
         </div>
         {/if}

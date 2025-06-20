@@ -1,5 +1,8 @@
 <script lang="ts">
   import Swal from 'sweetalert2';
+  import { onMount } from 'svelte';
+  import { push } from 'svelte-spa-router';
+  import { accessToken } from '../lib/auth';
 
   async function handleCleanup() {
       const result = await Swal.fire({
@@ -39,6 +42,13 @@
           }
       }
   }
+
+  onMount(() => {
+      if (!$accessToken) {
+          push('/');
+          return;
+      }
+  });
 </script>
 
 <div class="maintenance-page">

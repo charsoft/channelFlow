@@ -3,6 +3,7 @@
   import StatusLog from '../components/StatusLog.svelte';
   import Workflow from '../components/Workflow.svelte';
   import ConnectYouTubeButton from '../components/ConnectYouTubeButton.svelte';
+  import SystemFlow from './SystemFlow.svelte';
   import { accessToken } from '../lib/auth';
   import { videoStatus } from '../lib/stores';
   import { listenForUpdates, checkYouTubeConnection, disconnectYouTube, retriggerStage } from '../lib/api';
@@ -184,13 +185,14 @@
 
 <div class="home-container">
   <div class="content-column">
-    <h1 class="mb-2">Amplify your message.</h1>
-    <p class="mb-4">
-      Paste a YouTube link to transform a single video into a complete,
-      multi-platform marketing campaign, orchestrated by autonomous AI agents.
-    </p>
-  <p class="mb-6">
-     {#if $accessToken}
+  
+    {#if $accessToken}
+      <h1 class="mb-2">Amplify your message.</h1>
+      <p class="mb-4">
+        Paste a YouTube link to transform a single video into a complete,
+        multi-platform marketing campaign, orchestrated by autonomous AI agents.
+      </p>
+
       {#if isYouTubeConnected}
         <div class="ingestion-controls">
           <div class="youtube-connected-status">
@@ -206,11 +208,14 @@
           <ConnectYouTubeButton on:connected={onYouTubeConnected} />
         </div>
       {/if}
+    {:else}
+      <div class="welcome-header">
+        <h2>Sign in to get started... you'll turn your YouTube Channel into multiple channels of creativity, using this amazing Agent Development Kit Google hackathon contender!</h2>
+      </div>
+      <SystemFlow />
     {/if}
-  </p>
-   
 
-    {#if $videoStatus}
+    {#if $accessToken && $videoStatus}
       <div class="processing-section">
         <div class="workflow-controls">
           <h3 class="text-lg font-semibold text-gray-700">Live Workflow</h3>
@@ -272,18 +277,25 @@
     border-top: 1px solid #e5e7eb; /* gray-200 */
     padding-top: 2rem;
   }
-  .ingestion-controls {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    width: 100%;
+  .ingestion-controls, .youtube-connect-prompt {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+  }
+
+  .welcome-message p {
+    text-align: center;
+    font-size: 1.1rem;
+    color: var(--subtle-text-color);
+    margin: 0;
   }
 
   .youtube-connected-status {
     display: flex;
     align-items: center;
-    padding: 0.5rem 0.5rem 0.5rem 1rem; /* Adjusted padding */
+    padding: 1rem;
+    margin-top: 2rem;
     background-color: #f0fdf4; /* green-50 */
     border: 1px solid #bbf7d0; /* green-200 */
     border-radius: 0.5rem;
@@ -313,5 +325,21 @@
 
   .icon {
     margin-right: 0.5rem;
+  }
+
+  .mb-2 { margin-bottom: 0.5rem; }
+  .mb-4 { margin-bottom: 1rem; }
+  .mb-6 { margin-bottom: 1.5rem; }
+
+  .welcome-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .welcome-header h2 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--text-color);
   }
 </style>

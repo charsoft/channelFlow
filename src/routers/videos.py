@@ -227,7 +227,7 @@ async def stream_status(request: Request, video_id: str):
     return EventSourceResponse(event_generator())
 
 @router.post("/api/re-trigger")
-async def re_trigger(request: RetriggerRequest):
+async def re_trigger(request: RetriggerRequest, current_user: dict = Depends(get_current_user)):
     video_doc_ref = db.collection("videos").document(request.video_id)
     doc = await video_doc_ref.get()
 
@@ -294,85 +294,226 @@ async def re_trigger(request: RetriggerRequest):
         
     if event_to_publish:
         await event_bus.publish(event_to_publish)
-        return JSONResponse(status_code=200, content={"message": f"Stage '{request.stage}' re-triggered."})
+        return JSONResponse(status_code=200, content={"message": f"Stage '{request.stage}' re-triggered successfully."})
     else:
         return JSONResponse(status_code=400, content={"message": f"Invalid stage '{request.stage}' provided."})
 
 @router.get("/api/videos")
-async def get_videos():
-    try:
-        # Fetch all documents without server-side sorting to ensure none are missed
-        videos_ref = db.collection("videos")
-        docs = videos_ref.stream()
-        videos = []
-        async for doc in docs:
-            video_data = doc.to_dict()
-            video_data["id"] = doc.id
-            
-            # Generate signed URLs for thumbnails to display on the dashboard
-            thumbnail_urls = []
-            image_gcs_uris = video_data.get("image_gcs_uris", [])
-            on_demand_thumbnails = video_data.get("on_demand_thumbnails", [])
+async def get_videos(current_user: dict = Depends(get_current_user)):
+    """
+    Retrieves all videos processed by the currently authenticated user.
+    """
+    user_id = current_user.get("uid")
+    videos_ref = db.collection("videos").where("user_id", "==", user_id).order_by("created_at", direction=firestore.Query.DESC)
+    docs = videos_ref.stream()
 
-            # Get up to 4 URLs, prioritizing on-demand ones
-            for item in reversed(on_demand_thumbnails): # newest first
-                if len(thumbnail_urls) < 4 and "gcs_uri" in item:
-                    thumbnail_urls.append(_get_signed_url(item["gcs_uri"]))
-            
-            for uri in image_gcs_uris:
-                if len(thumbnail_urls) < 4:
-                    thumbnail_urls.append(_get_signed_url(uri))
-            
-            video_data["thumbnails"] = [url for url in thumbnail_urls if url]
-
-            for key, value in video_data.items():
-                if isinstance(value, datetime):
-                    video_data[key] = value.isoformat()
-            videos.append(video_data)
+    videos = []
+    for doc in docs:
+        video_data = doc.to_dict()
+        video_data["video_id"] = doc.id
         
-        # Sort in the application to handle missing 'received_at' fields gracefully
-        videos.sort(key=lambda v: v.get('received_at', '1970-01-01T00:00:00Z'), reverse=True)
+        if created_at := video_data.get("created_at"):
+            if isinstance(created_at, datetime):
+                 video_data["received_at"] = created_at.isoformat()
+            else:
+                # Handle potential timestamp strings if data format is inconsistent
+                video_data["received_at"] = str(created_at)
 
-        return {"videos": videos}
-    except Exception as e:
-        print(f"Error fetching all videos: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch videos.")
+        # Generate signed URLs for thumbnails if they exist
+        if image_urls := video_data.get("image_urls"):
+            video_data["image_urls"] = [_get_signed_url(url) for url in image_urls if url]
+        
+        if on_demand_thumbs := video_data.get("on_demand_thumbnails"):
+             video_data["on_demand_thumbnails"] = [
+                {**thumb, "image_url": _get_signed_url(thumb["image_url"])}
+                for thumb in on_demand_thumbs if thumb.get("image_url")
+            ]
+
+        videos.append(video_data)
+
+    return {"videos": videos}
 
 @router.get("/api/video/{video_id}")
-async def get_video(video_id: str):
-    try:
-        doc_ref = db.collection("videos").document(video_id)
-        video_doc = await doc_ref.get()
-        if not video_doc.exists:
-            raise HTTPException(status_code=404, detail="Video not found")
+async def get_video(video_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Retrieves details for a single video, ensuring it belongs to the authenticated user.
+    """
+    video_doc_ref = db.collection("videos").document(video_id)
+    doc = await video_doc_ref.get()
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    video_data = doc.to_dict()
     
-        video_data = video_doc.to_dict()
+    # Security Check: Ensure the video belongs to the current user
+    if video_data.get("user_id") != current_user.get("uid"):
+        raise HTTPException(status_code=403, detail="Not authorized to view this video.")
 
-        # Convert image_gcs_uris to signed URLs
-        if "image_gcs_uris" in video_data and video_data["image_gcs_uris"]:
-            video_data["image_urls"] = [_get_signed_url(uri) for uri in video_data["image_gcs_uris"]]
+    video_data["video_id"] = doc.id
+    
+    for key, value in video_data.items():
+        if isinstance(value, datetime):
+            video_data[key] = value.isoformat()
 
-        # Convert on_demand_thumbnails gcs_uris to signed URLs and datetimes
-        if "on_demand_thumbnails" in video_data and video_data["on_demand_thumbnails"]:
-            for item in video_data["on_demand_thumbnails"]:
-                if "gcs_uri" in item:
-                    item["image_url"] = _get_signed_url(item["gcs_uri"])
-                if "created_at" in item and isinstance(item["created_at"], datetime):
-                    item["created_at"] = item["created_at"].isoformat()
+    # Generate signed URLs for any GCS URIs
+    if image_urls := video_data.get("image_urls"):
+        video_data["image_urls"] = [_get_signed_url(url) for url in image_urls if url]
+        
+    if on_demand_thumbs := video_data.get("on_demand_thumbnails"):
+        video_data["on_demand_thumbnails"] = [
+            {**thumb, "image_url": _get_signed_url(thumb["image_url"])}
+            for thumb in on_demand_thumbs if thumb.get("image_url")
+        ]
 
-        # Convert top-level datetimes
-        for key, value in video_data.items():
-            if isinstance(value, datetime):
-                video_data[key] = value.isoformat()
-
-        return {"video": video_data}
-    except Exception as e:
-        print(f"Error fetching video {video_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch video.")
+    return {"video": video_data}
 
 @router.delete("/api/videos/{video_id}")
-async def delete_video(video_id: str):
-    pass
+async def delete_video(video_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Deletes a video and its associated data, ensuring it belongs to the authenticated user.
+    """
+    video_doc_ref = db.collection("videos").document(video_id)
+    doc = await video_doc_ref.get()
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    video_data = doc.to_dict()
+    
+    # Security Check
+    if video_data.get("user_id") != current_user.get("uid"):
+        raise HTTPException(status_code=403, detail="Not authorized to delete this video.")
+
+    # --- Deletion from GCS ---
+    bucket_name = os.getenv("GCS_BUCKET_NAME")
+    if bucket_name:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+
+        gcs_uri_fields = ["transcript_gcs_uri", "analysis_gcs_uri", "substack_gcs_uri"]
+        
+        for field in gcs_uri_fields:
+            if gcs_uri := video_data.get(field):
+                try:
+                    blob_path = gcs_uri.replace(f"gs://{bucket_name}/", "")
+                    blob = bucket.blob(blob_path)
+                    if await asyncio.to_thread(blob.exists):
+                        await asyncio.to_thread(blob.delete)
+                        print(f"   Deleted GCS file: {blob.name}")
+                except Exception as e:
+                    print(f"   Could not delete GCS file from URI {gcs_uri}: {e}")
+
+        if image_urls := video_data.get("image_urls"):
+            for url in image_urls:
+                try:
+                    blob_path = url.replace(f"https://storage.googleapis.com/{bucket_name}/", "")
+                    blob = bucket.blob(blob_path)
+                    if await asyncio.to_thread(blob.exists):
+                        await asyncio.to_thread(blob.delete)
+                        print(f"   Deleted GCS image: {blob.name}")
+                except Exception as e:
+                    print(f"   Could not delete GCS image from URL {url}: {e}")
+
+    await video_doc_ref.delete()
+    print(f"   Deleted Firestore document for user {current_user.get('uid')}: {video_id}")
+
+    return JSONResponse(status_code=200, content={"message": "Video and all associated data deleted successfully."})
+
+@router.post("/api/video/{video_id}/generate-prompts")
+async def generate_prompts(video_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """ Generate image prompts for a given video """
+    body = await request.json()
+    context = body.get("context")
+
+    if not context:
+        raise HTTPException(status_code=400, detail="Context (video summary) is required.")
+
+    # Security Check
+    video_doc_ref = db.collection("videos").document(video_id)
+    doc = await video_doc_ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if doc.to_dict().get("user_id") != current_user.get("uid"):
+        raise HTTPException(status_code=403, detail="Not authorized to generate prompts for this video.")
+
+    # This would call your LLM to generate prompts. For now, returning dummy data.
+    # In a real app, this would be: `prompts = await llm_service.generate_prompts(context)`
+    await asyncio.sleep(2) # Simulate network call
+    prompts = [
+        f"A cinematic shot of a computer screen showing code, reflecting the video's theme: '{context[:30]}...'",
+        f"An abstract visual representation of '{context.split()[0]} {context.split()[1]}'.",
+        "A minimalist graphic with a single, compelling icon related to the video's main topic.",
+        f"Photo of a person looking thoughtfully at a whiteboard with diagrams about '{context[:20]}...'"
+    ]
+    return JSONResponse(status_code=200, content={"prompts": prompts})
+
+class ImageGenerationRequest(BaseModel):
+    prompt: str
+    model_name: str
+
+@router.post("/api/video/{video_id}/generate-image")
+async def generate_image(video_id: str, request: ImageGenerationRequest, current_user: dict = Depends(get_current_user)):
+    # Security Check
+    video_doc_ref = db.collection("videos").document(video_id)
+    doc = await video_doc_ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if doc.to_dict().get("user_id") != current_user.get("uid"):
+        raise HTTPException(status_code=403, detail="Not authorized.")
+
+    # Placeholder: In a real implementation, you would call the Vertex AI Imagen API
+    print(f"Generating image for video {video_id} with prompt: '{request.prompt}' using model '{request.model_name}'")
+    await asyncio.sleep(5) # Simulate image generation
+
+    # Create a fake GCS URI and a signed URL for it
+    fake_filename = f"on-demand/{video_id}/{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+    gcs_uri = f"gs://{bucket_name}/{fake_filename}"
+    signed_url = _get_signed_url(gcs_uri) # This won't work perfectly without the file existing, but it's for demo purposes
+
+    new_thumbnail_data = {
+        "prompt": request.prompt,
+        "model_name": request.model_name,
+        "image_gcs_uri": gcs_uri,
+        "image_url": signed_url, # In reality, you'd upload the file first then get the URL
+        "generated_at": firestore.SERVER_TIMESTAMP
+    }
+
+    # Atomically add the new thumbnail to the array
+    await video_doc_ref.update({
+        "on_demand_thumbnails": firestore.ArrayUnion([new_thumbnail_data])
+    })
+    
+    # Return just the new data so the frontend can append it
+    # Note: We need to re-format the timestamp for JSON serialization
+    new_thumbnail_data["image_url"] = signed_url # Re-add as it's not stored in firestore
+    new_thumbnail_data["generated_at"] = datetime.now().isoformat()
+    return JSONResponse(status_code=201, content=new_thumbnail_data)
+
+@router.post("/api/video/{video_id}/generate-clip")
+async def generate_clip(video_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """ Generate a short video clip from the original video. """
+    body = await request.json()
+    start_time = body.get("start_time")
+    end_time = body.get("end_time")
+
+    # Security Check
+    video_doc_ref = db.collection("videos").document(video_id)
+    doc = await video_doc_ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if doc.to_dict().get("user_id") != current_user.get("uid"):
+        raise HTTPException(status_code=403, detail="Not authorized.")
+    
+    # In a real app, this would call a video processing service (e.g., FFMPEG on a Cloud Function)
+    print(f"SIMULATING: Generating clip for {video_id} from {start_time}s to {end_time}s.")
+    await asyncio.sleep(8) # Simulate video processing
+    
+    # For demonstration, we'll just return a placeholder URL.
+    # A real implementation would upload the clip to GCS and return a signed URL.
+    clip_url = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+
+    return JSONResponse(status_code=200, content={"clip_url": clip_url})
 
 # This is a duplicate and insecure endpoint. Removing it.
 # @router.post("/api/ingest")
