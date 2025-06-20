@@ -507,49 +507,60 @@ async def generate_image(video_id: str, request: ImageGenerationRequest, current
     video_doc_ref = db.collection("videos").document(video_id)
     video_doc = await video_doc_ref.get()
 
-    if not video_doc.exists or video_doc.to_dict().get("user_id") != user_id:
+    if not video_doc.exists:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    video_data = video_doc.to_dict()
+    if video_data.get("user_id") != user_id:
         raise HTTPException(status_code=403, detail="User does not have access to this video")
 
-    # This is a placeholder for the actual image generation logic
-    # In a real app, this would call a service like Vertex AI's Imagen
-    print(f"Generating image for video {video_id} with prompt: '{request.prompt}' using model {request.model_name}")
+    try:
+        # Instantiate the VisualsAgent to do the actual work
+        visuals_agent = VisualsAgent(
+            project_id=os.environ.get("GCP_PROJECT_ID"),
+            location=os.environ.get("GCP_REGION"),
+            bucket_name=os.environ.get("GCS_BUCKET_NAME"),
+            api_key=os.environ.get("GEMINI_API_KEY"),
+            # Important: Pass the model selected by the user
+            model_name=request.model_name
+        )
 
-    # Simulate generation and upload
-    await asyncio.sleep(5) 
-    
-    # Create a unique filename
-    unique_id = uuid.uuid4()
-    file_name = f"on-demand-thumbnails/{video_id}/{unique_id}.png"
-    
-    # In a real scenario, you'd get the image bytes from the generation service
-    # Here, we'll just create a placeholder file path for the GCS URI
-    gcs_uri = f"gs://{bucket_name}/{file_name}"
+        # Call the agent's method to generate and upload the image
+        gcs_uri = await visuals_agent._generate_and_upload_image(
+            prompt=request.prompt,
+            video_id=video_id,
+            index=f"ondemand_{uuid.uuid4()}" # A unique identifier for the filename
+        )
 
-    # Simulate uploading to GCS (we don't actually upload anything here)
-    print(f"Simulated upload to {gcs_uri}")
+        if not gcs_uri:
+            raise HTTPException(status_code=500, detail="Image generation failed to return a GCS URI.")
 
-    image_url = f"https://storage.googleapis.com/{bucket_name}/{file_name}"
-    
-    new_thumbnail_data = {
-        "prompt": request.prompt,
-        "model": request.model_name,
-        "image_url": image_url, # Placeholder URL
-        "gcs_uri": gcs_uri,
-        "created_at": firestore.SERVER_TIMESTAMP
-    }
+        # --- Prepare Firestore Update ---
+        update_data = {
+            "image_gcs_uris": firestore.ArrayUnion([gcs_uri]),
+            "updated_at": firestore.SERVER_TIMESTAMP
+        }
 
-    await video_doc_ref.update({
-        "on_demand_thumbnails": firestore.ArrayUnion([new_thumbnail_data]),
-        "updated_at": firestore.SERVER_TIMESTAMP
-    })
-    
-    # The Firestore timestamp is an object that can't be directly serialized to JSON.
-    # For the return value, we'll convert it to an ISO 8601 string.
-    # The frontend already handles this correctly for display.
-    response_data = new_thumbnail_data.copy()
-    response_data["created_at"] = datetime.utcnow().isoformat()
+        # If the current status is failed, update it to success
+        if video_data.get("status") == "visuals_failed":
+            update_data["status"] = "visuals_generated"
+            update_data["status_message"] = "Visuals regenerated on-demand after previous failure."
+        
+        # Save the GCS URI (and potentially the status) to Firestore
+        await video_doc_ref.update(update_data)
 
-    return JSONResponse(status_code=200, content=response_data)
+        # Generate a signed URL for the frontend to display immediately
+        image_url = _get_signed_url(gcs_uri)
+        if not image_url:
+            # Fallback for safety, though it should ideally not be needed
+            image_url = gcs_uri.replace("gs://", "https://storage.googleapis.com/")
+
+        return JSONResponse(status_code=200, content={"image_url": image_url})
+
+    except Exception as e:
+        import traceback
+        print(f"Error in on-demand image generation: {e}\\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"An error occurred during image generation: {e}")
 
 @router.post("/api/video/{video_id}/generate-clip")
 async def generate_clip(video_id: str, request: Request, current_user: dict = Depends(get_current_user)):
