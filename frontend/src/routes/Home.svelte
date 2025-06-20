@@ -14,16 +14,36 @@
   let isRestartMode = false;
   let currentVideoId: string | null = null;
 
-  onMount(async () => {
+   // 1) Check once on page load (if the user is already logged in)
+  onMount(() => {
     if ($accessToken) {
-      isYouTubeConnected = await checkYouTubeConnection();
+      refreshConnection();
     }
   });
 
-  $: if ($accessToken) {
-    checkYouTubeConnection().then(status => isYouTubeConnected = status);
-  } else {
-    isYouTubeConnected = false;
+  // 2) Helper to (re)validate connection state
+  async function refreshConnection() {
+    try {
+      isYouTubeConnected = await checkYouTubeConnection();
+    } catch {
+      isYouTubeConnected = false;
+    }
+  }
+
+  // 3) Fired when your ConnectYouTubeButton emits `on:connected`
+  function onYouTubeConnected() {
+    isYouTubeConnected = true;
+  }
+
+  // 4) Your existing disconnect flow
+  async function handleDisconnect() {
+    try {
+      await disconnectYouTube();
+      isYouTubeConnected = false;
+      Swal.fire('Success', 'Your YouTube account has been disconnected.', 'success');
+    } catch (err: any) {
+      Swal.fire('Error', err.message, 'error');
+    }
   }
   
   $: if ($videoStatus?.video_id) {
@@ -73,24 +93,74 @@
           );
         }
       }
+
+      // De-select restart mode regardless of the outcome
+      isRestartMode = false;
     });
-    // Turn off restart mode after a selection is made
-    isRestartMode = false;
   }
 
-  function onYouTubeConnected() {
-    isYouTubeConnected = true;
-  }
 
-  async function handleDisconnect() {
-    try {
-      await disconnectYouTube();
-      isYouTubeConnected = false;
-      Swal.fire('Success', 'Your YouTube account has been disconnected.', 'success');
-    } catch (err: any) {
-      Swal.fire('Error', err.message, 'error');
+   const agents = [
+    'Ingestion',
+    'Transcription',
+    'Analysis',
+    'Copywriting',
+    'Visuals',
+    'Publisher'
+  ];
+
+   const statusMap: Record<string, { agent: string; state: 'active' | 'completed' | 'failed' }> = {
+    'ingesting':         { agent: 'Ingestion',     state: 'active'    },
+    'ingested':          { agent: 'Ingestion',     state: 'completed' },
+    'ingestion_failed':  { agent: 'Ingestion',     state: 'failed'    },
+
+    'transcribing':      { agent: 'Transcription', state: 'active'    },
+    'transcribed':       { agent: 'Transcription', state: 'completed' },
+    'transcription_failed': { agent: 'Transcription', state: 'failed' },
+    'auth_failed':       { agent: 'Transcription', state: 'failed'    },
+
+    'analyzing':         { agent: 'Analysis',      state: 'active'    },
+    'analyzed':          { agent: 'Analysis',      state: 'completed' },
+    'analysis_failed':   { agent: 'Analysis',      state: 'failed'    },
+
+    'generating_copy':   { agent: 'Copywriting',   state: 'active'    },
+    'copy_generated':    { agent: 'Copywriting',   state: 'completed' },
+    'copy_failed':       { agent: 'Copywriting',   state: 'failed'    },
+
+    'generating_visuals':{ agent: 'Visuals',       state: 'active'    },
+    'visuals_generated': { agent: 'Visuals',       state: 'completed' },
+    'visuals_failed':    { agent: 'Visuals',       state: 'failed'    },
+
+    'publishing':        { agent: 'Publisher',     state: 'active'    },
+    'published':         { agent: 'Publisher',     state: 'completed' },
+    'publishing_failed': { agent: 'Publisher',     state: 'failed'    },
+  };
+// 2) Derive `stages` reactively from your store + constants:
+  $: stages = agents.map((agent) => {
+    // default to “pending”
+    let state: 'pending' | 'active' | 'completed' | 'failed' = 'pending';
+
+    if ($videoStatus?.status) {
+      const entry = statusMap[$videoStatus.status];
+      if (entry) {
+        const currentAgent = entry.agent;
+        const currentState = entry.state;
+        const currentIndex = agents.indexOf(currentAgent);
+        const thisIndex    = agents.indexOf(agent);
+
+        if (agent === currentAgent) {
+          // the one that’s running or just finished
+          state = currentState;
+        } else if (thisIndex < currentIndex) {
+          // any agent before it must have completed already
+          state = 'completed';
+        }
+        // otherwise leave it as “pending”
+      }
     }
-  }
+
+    return { name: agent, status: state };
+  });
 </script>
 
 <div class="content-column">
@@ -135,7 +205,11 @@
        {#if isRestartMode}
         <p class="restart-prompt">Select a completed stage to restart from.</p>
       {/if}
-      <Workflow bind:isRestartMode on:retrigger={handleRetrigger} />
+      <Workflow 
+        bind:isRestartMode 
+        {stages}
+        on:retrigger={handleRetrigger} 
+      />
       <StatusLog />
     </div>
   {/if}

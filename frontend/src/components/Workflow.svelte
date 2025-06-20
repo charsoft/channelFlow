@@ -1,86 +1,54 @@
 <!-- src/components/Workflow.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { videoStatus } from '../lib/stores';
-
+ 
+/** 
+   * Now we accept a pre-built list of stages,
+   * each with its `name` and one of four statuses.
+   */
   export let isRestartMode = false;
+
+  export let stages: {
+    name: string;
+    status: 'pending' | 'active' | 'completed' | 'failed';
+  }[] = [];
+
   const dispatch = createEventDispatcher();
 
-  const agents = ['Ingestion', 'Transcription', 'Analysis', 'Copywriting', 'Visuals', 'Publisher'];
-
-  const statusMap: Record<string, { agent: string; state: 'active' | 'completed' | 'failed' }> = {
-    'ingesting': { agent: 'Ingestion', state: 'active' },
-    'ingested': { agent: 'Ingestion', state: 'completed' },
-    'ingestion_failed': { agent: 'Ingestion', state: 'failed' },
-    'transcribing': { agent: 'Transcription', state: 'active' },
-    'transcribed': { agent: 'Transcription', state: 'completed' },
-    'transcription_failed': { agent: 'Transcription', state: 'failed' },
-    'auth_failed': { agent: 'Transcription', state: 'failed' },
-    'analyzing': { agent: 'Analysis', state: 'active' },
-    'analyzed': { agent: 'Analysis', state: 'completed' },
-    'analysis_failed': { agent: 'Analysis', state: 'failed' },
-    'generating_copy': { agent: 'Copywriting', state: 'active' },
-    'copy_generated': { agent: 'Copywriting', state: 'completed' },
-    'copy_failed': { agent: 'Copywriting', state: 'failed' },
-    'generating_visuals': { agent: 'Visuals', state: 'active' },
-    'visuals_generated': { agent: 'Visuals', state: 'completed' },
-    'visuals_failed': { agent: 'Visuals', state: 'failed' },
-    'publishing': { agent: 'Publisher', state: 'active' },
-    'published': { agent: 'Publisher', state: 'completed' },
-    'publishing_failed': { agent: 'Publisher', state: 'failed' },
-  };
-
-  let agentStates: Record<string, 'pending' | 'active' | 'completed' | 'failed'> = {};
-
-  $: {
-    const newStates: Record<string, 'pending' | 'active' | 'completed' | 'failed'> = {};
-    if ($videoStatus?.status) {
-      const current = statusMap[$videoStatus.status];
-      if (current) {
-        const currentIndex = agents.indexOf(current.agent);
-
-        // Mark all agents before the current one as completed.
-        for (let i = 0; i < currentIndex; i++) {
-          newStates[agents[i]] = 'completed';
-        }
-
-        // Set the current agent's specific state.
-        newStates[current.agent] = current.state;
-      }
-    }
-    agentStates = newStates;
-  }
-
-  function handleStepClick(agent: string) {
-    if (isRestartMode && agentStates[agent] === 'completed') {
-      dispatch('retrigger', { stage: agent });
+  function handleStepClick(stage: { name: string; status: string }) {
+    if (isRestartMode && stage.status === 'completed') {
+      dispatch('retrigger', { stage: stage.name });
     }
   }
+  
+
 </script>
 
 <section class="workflow-section">
   <h3 class="text-lg font-semibold mb-4 text-gray-700">Live Workflow</h3>
   <div class="workflow-container">
-    {#each agents as agent, i}
-      <button 
-        type="button"
-        class="workflow-step"
-        class:success={agentStates[agent] === 'completed'}
-        class:active={agentStates[agent] === 'active'}
-        class:failed={agentStates[agent] === 'failed'}
-        class:restart-active={isRestartMode && agentStates[agent] === 'completed'}
-        on:click={() => handleStepClick(agent)}
-      >
-        {agent}
-      </button>
-      {#if i < agents.length - 1}
-        <div 
-          class="workflow-arrow"
-          class:completed={agentStates[agent] === 'completed'}
-        />
-      {/if}
-    {/each}
-  </div>
+   {#each stages as stage, i}
+     <button
+       type="button"
+       class="workflow-step"
+       class:success={stage.status === 'completed'}
+       class:active={stage.status === 'active'}
+       class:failed={stage.status === 'failed'}
+       class:restart-active={isRestartMode && stage.status === 'completed'}
+       on:click={() => handleStepClick(stage)}
+      disabled={isRestartMode && stage.status !== 'completed'}
+     >
+       {stage.name}
+     </button>
+
+     {#if i < stages.length - 1}
+       <div
+        class="workflow-arrow"
+         class:completed={stage.status === 'completed'}
+       />
+     {/if}
+  {/each}
+ </div>
 </section>
 
 <style>
