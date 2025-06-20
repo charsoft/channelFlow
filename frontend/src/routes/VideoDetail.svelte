@@ -4,6 +4,7 @@
   import Swal from 'sweetalert2';
   import { marked } from 'marked';
   import { accessToken } from '../lib/auth';
+  import { getHeaders } from '../lib/api';
 
   import { listenForUpdates } from '../lib/api';
   import { sanitizeTitleForFilename } from '../lib/utils';
@@ -96,8 +97,14 @@
     
     isLoading = true;
     try {
-      const response = await fetch(`/api/video/${params.id}`);
+      const response = await fetch(`/api/video/${params.id}`, {
+        headers: await getHeaders()
+      });
       if (!response.ok) {
+        if (response.status === 401) {
+            push('/');
+            return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
@@ -467,6 +474,7 @@
             <ShortsCandidates
                 candidates={videoData.structured_data?.shorts_candidates || []}
                 videoId={videoData.video_id}
+                bind:videoData
             />
         </div>
         {/if}

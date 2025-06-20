@@ -28,6 +28,7 @@
     "firebase": "^11.9.1",
     "jwt-decode": "^4.0.0",
     "marked": "^15.0.12",
+    "svelte-range-slider-pips": "^4.0.0",
     "sweetalert2": "^11.10.8"
   }
 }

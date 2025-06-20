@@ -1,7 +1,9 @@
 import asyncio
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+import tempfile
+import uuid
 
 from fastapi import APIRouter, Depends, Request, HTTPException, status, Query
 from fastapi.responses import JSONResponse
@@ -17,6 +19,7 @@ from ..events import NewVideoDetected, TranscriptReady, ContentAnalysisComplete,
 from ..event_bus import event_bus
 from ..security import decrypt_data, encrypt_data
 from .auth import get_current_user
+from ..video_processing import create_vertical_clip
 
 router = APIRouter()
 
@@ -30,8 +33,7 @@ def _get_signed_url(gcs_uri: str) -> str:
         return None
     try:
         blob_name = gcs_uri.replace(f"gs://{bucket_name}/", "")
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
+        blob = storage_client.bucket(bucket_name).blob(blob_name)
         
         signed_url = blob.generate_signed_url(
             version="v4",
@@ -484,65 +486,233 @@ class ImageGenerationRequest(BaseModel):
 @router.post("/api/video/{video_id}/generate-image")
 async def generate_image(video_id: str, request: ImageGenerationRequest, current_user: dict = Depends(get_current_user)):
     # Security Check
+    user_id = current_user.get("uid")
     video_doc_ref = db.collection("videos").document(video_id)
-    doc = await video_doc_ref.get()
-    if not doc.exists:
-        raise HTTPException(status_code=404, detail="Video not found")
-    if doc.to_dict().get("user_id") != current_user.get("uid"):
-        raise HTTPException(status_code=403, detail="Not authorized.")
+    video_doc = await video_doc_ref.get()
 
-    # Placeholder: In a real implementation, you would call the Vertex AI Imagen API
-    print(f"Generating image for video {video_id} with prompt: '{request.prompt}' using model '{request.model_name}'")
-    await asyncio.sleep(5) # Simulate image generation
+    if not video_doc.exists or video_doc.to_dict().get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="User does not have access to this video")
 
-    # Create a fake GCS URI and a signed URL for it
-    fake_filename = f"on-demand/{video_id}/{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
-    gcs_uri = f"gs://{bucket_name}/{fake_filename}"
-    signed_url = _get_signed_url(gcs_uri) # This won't work perfectly without the file existing, but it's for demo purposes
+    # This is a placeholder for the actual image generation logic
+    # In a real app, this would call a service like Vertex AI's Imagen
+    print(f"Generating image for video {video_id} with prompt: '{request.prompt}' using model {request.model_name}")
 
+    # Simulate generation and upload
+    await asyncio.sleep(5) 
+    
+    # Create a unique filename
+    unique_id = uuid.uuid4()
+    file_name = f"on-demand-thumbnails/{video_id}/{unique_id}.png"
+    
+    # In a real scenario, you'd get the image bytes from the generation service
+    # Here, we'll just create a placeholder file path for the GCS URI
+    gcs_uri = f"gs://{bucket_name}/{file_name}"
+
+    # Simulate uploading to GCS (we don't actually upload anything here)
+    print(f"Simulated upload to {gcs_uri}")
+
+    image_url = f"https://storage.googleapis.com/{bucket_name}/{file_name}"
+    
     new_thumbnail_data = {
         "prompt": request.prompt,
-        "model_name": request.model_name,
-        "image_gcs_uri": gcs_uri,
-        "image_url": signed_url, # In reality, you'd upload the file first then get the URL
-        "generated_at": firestore.SERVER_TIMESTAMP
+        "model": request.model_name,
+        "image_url": image_url, # Placeholder URL
+        "gcs_uri": gcs_uri,
+        "created_at": firestore.SERVER_TIMESTAMP
     }
 
-    # Atomically add the new thumbnail to the array
     await video_doc_ref.update({
-        "on_demand_thumbnails": firestore.ArrayUnion([new_thumbnail_data])
+        "on_demand_thumbnails": firestore.ArrayUnion([new_thumbnail_data]),
+        "updated_at": firestore.SERVER_TIMESTAMP
     })
     
-    # Return just the new data so the frontend can append it
-    # Note: We need to re-format the timestamp for JSON serialization
-    new_thumbnail_data["image_url"] = signed_url # Re-add as it's not stored in firestore
-    new_thumbnail_data["generated_at"] = datetime.now().isoformat()
-    return JSONResponse(status_code=201, content=new_thumbnail_data)
+    # The Firestore timestamp is an object that can't be directly serialized to JSON.
+    # For the return value, we'll convert it to an ISO 8601 string.
+    # The frontend already handles this correctly for display.
+    response_data = new_thumbnail_data.copy()
+    response_data["created_at"] = datetime.utcnow().isoformat()
+
+    return JSONResponse(status_code=200, content=response_data)
 
 @router.post("/api/video/{video_id}/generate-clip")
 async def generate_clip(video_id: str, request: Request, current_user: dict = Depends(get_current_user)):
     """ Generate a short video clip from the original video. """
     body = await request.json()
-    start_time = body.get("start_time")
-    end_time = body.get("end_time")
+    start_time = float(body.get("start_time"))
+    end_time = float(body.get("end_time"))
+    title = body.get("suggested_title", "Untitled Clip")
 
     # Security Check
     video_doc_ref = db.collection("videos").document(video_id)
     doc = await video_doc_ref.get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Video not found")
-    if doc.to_dict().get("user_id") != current_user.get("uid"):
+    
+    video_data = doc.to_dict()
+    if video_data.get("user_id") != current_user.get("uid"):
         raise HTTPException(status_code=403, detail="Not authorized.")
     
-    # In a real app, this would call a video processing service (e.g., FFMPEG on a Cloud Function)
-    print(f"SIMULATING: Generating clip for {video_id} from {start_time}s to {end_time}s.")
-    await asyncio.sleep(8) # Simulate video processing
-    
-    # For demonstration, we'll just return a placeholder URL.
-    # A real implementation would upload the clip to GCS and return a signed URL.
-    clip_url = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+    original_video_gcs_uri = video_data.get("original_video_gcs_uri")
+    if not original_video_gcs_uri:
+        raise HTTPException(status_code=400, detail="Original video not found in storage.")
 
-    return JSONResponse(status_code=200, content={"clip_url": clip_url})
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            # Download, process, and upload the clip
+            source_blob_name = original_video_gcs_uri.replace(f"gs://{bucket_name}/", "")
+            source_blob = storage_client.bucket(bucket_name).blob(source_blob_name)
+            original_filename = os.path.basename(source_blob_name)
+            local_input_path = os.path.join(tmpdir, original_filename)
+            await asyncio.to_thread(source_blob.download_to_filename, local_input_path)
+
+            clip_id = str(uuid.uuid4())
+            local_output_path = os.path.join(tmpdir, f"{clip_id}.mp4")
+            
+            await asyncio.to_thread(
+                create_vertical_clip,
+                input_path=local_input_path,
+                output_path=local_output_path,
+                start_time=start_time,
+                end_time=end_time
+            )
+
+            # Upload to a temporary location for preview
+            dest_blob_name = f"generated_clips/tmp/{video_id}/{clip_id}.mp4"
+            dest_blob = storage_client.bucket(bucket_name).blob(dest_blob_name)
+            await asyncio.to_thread(dest_blob.upload_from_filename, local_output_path)
+            
+            preview_gcs_uri = f"gs://{bucket_name}/{dest_blob.name}"
+
+            download_url = dest_blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(minutes=30), # Shorter expiration for previews
+                method="GET",
+            )
+            
+            # Return both the temporary URL and the permanent URI for the frontend to hold
+            return JSONResponse(status_code=200, content={
+                "clip_url": download_url,
+                "clip_gcs_uri": preview_gcs_uri
+            })
+
+        except Exception as e:
+            import traceback
+            print(f"ERROR generating clip: {e}\n{traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail=f"Failed to generate clip: {e}")
+
+@router.post("/api/video/{video_id}/generate-preview-clip")
+async def generate_preview_clip(video_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """
+    Generates a wider, editable preview clip for the user to select from.
+    """
+    body = await request.json()
+    start_time = float(body.get("start_time"))
+    end_time = float(body.get("end_time"))
+    
+    video_doc_ref = db.collection("videos").document(video_id)
+    doc = await video_doc_ref.get()
+    if not doc.exists or doc.to_dict().get("user_id") != current_user.get("uid"):
+        raise HTTPException(status_code=403, detail="Not authorized.")
+
+    video_data = doc.to_dict()
+    original_video_gcs_uri = video_data.get("original_video_gcs_uri")
+    if not original_video_gcs_uri:
+        raise HTTPException(status_code=400, detail="Original video not found.")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            source_blob_name = original_video_gcs_uri.replace(f"gs://{bucket_name}/", "")
+            source_blob = storage_client.bucket(bucket_name).blob(source_blob_name)
+            original_filename = os.path.basename(source_blob_name)
+            local_input_path = os.path.join(tmpdir, original_filename)
+            await asyncio.to_thread(source_blob.download_to_filename, local_input_path)
+
+            # Create a wider time window for the preview
+            preview_start = max(0, start_time - 30)
+            preview_end = end_time + 30 # We don't know the video duration, but ffmpeg will handle it.
+            
+            clip_id = str(uuid.uuid4())
+            local_output_path = os.path.join(tmpdir, f"preview-{clip_id}.mp4")
+            
+            # Create the vertical preview clip
+            await asyncio.to_thread(
+                create_vertical_clip,
+                input_path=local_input_path,
+                output_path=local_output_path,
+                start_time=preview_start,
+                end_time=preview_end
+            )
+
+            dest_blob_name = f"previews/{video_id}/{clip_id}.mp4"
+            dest_blob = storage_client.bucket(bucket_name).blob(dest_blob_name)
+            await asyncio.to_thread(dest_blob.upload_from_filename, local_output_path)
+            
+            download_url = dest_blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(minutes=60), # Previews can last a bit longer
+                method="GET",
+            )
+            
+            return JSONResponse(status_code=200, content={"preview_url": download_url})
+
+        except Exception as e:
+            import traceback
+            print(f"ERROR generating preview clip: {e}\n{traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail=f"Failed to generate preview clip: {e}")
+
+@router.post("/api/video/{video_id}/save-clip")
+async def save_clip(video_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """ Saves a generated clip's metadata to Firestore. """
+    body = await request.json()
+    
+    # Security Check
+    video_doc_ref = db.collection("videos").document(video_id)
+    doc = await video_doc_ref.get()
+    if not doc.exists or doc.to_dict().get("user_id") != current_user.get("uid"):
+        raise HTTPException(status_code=403, detail="Not authorized.")
+
+    clip_data_to_save = {
+        "start_time": body.get("start_time"),
+        "end_time": body.get("end_time"),
+        "title": body.get("title"),
+        "clip_gcs_uri": body.get("clip_gcs_uri"),
+        "generated_at": datetime.utcnow()
+    }
+
+    try:
+        await video_doc_ref.update({
+            "generated_clips": firestore.ArrayUnion([clip_data_to_save])
+        })
+        return JSONResponse(status_code=200, content={"message": "Clip saved successfully."})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save clip: {e}")
+
+@router.get("/api/clip/url")
+async def get_clip_url(gcs_uri: str, current_user: dict = Depends(get_current_user)):
+    """
+    Generates a temporary signed URL for a clip from its GCS URI.
+    A basic security check is performed to ensure the user is logged in,
+    but it doesn't verify ownership of the clip itself. A more robust
+    check would be needed in a production system.
+    """
+    if not gcs_uri or not gcs_uri.startswith(f"gs://{bucket_name}/"):
+        raise HTTPException(status_code=400, detail="Invalid GCS URI.")
+        
+    try:
+        blob_name = gcs_uri.replace(f"gs://{bucket_name}/", "")
+        blob = storage_client.bucket(bucket_name).blob(blob_name)
+        
+        if not await asyncio.to_thread(blob.exists):
+            raise HTTPException(status_code=404, detail="Clip not found.")
+
+        url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(minutes=60),
+            method="GET",
+        )
+        return {"url": url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # This is a duplicate and insecure endpoint. Removing it.
 # @router.post("/api/ingest")
