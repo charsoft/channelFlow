@@ -24,6 +24,13 @@
   let promptGenerationStates: { [key: number]: { selectedModel: string; isGenerating: boolean } } = {};
   let substackHtml = '';
   let isLoadingSubstack = false;
+  let processedNewsletterHtml = '';
+  
+  let newsletterPreImageHtml = '';
+  let newsletterPostImageHtml = '';
+  let availableImages: any[] = [];
+  let isImageSelectorVisible = false;
+  let selectedNewsletterImage = '';
 
   const imagenModels = [
     'imagen-4.0-generate-preview-06-06',
@@ -40,6 +47,29 @@
 
   $: if (activeTab === 'copy') {
     loadSubstackContent();
+  }
+
+  $: {
+    if (activeTab === 'copy' && videoData) {
+        availableImages = [...(videoData.image_urls || []), ...(videoData.on_demand_thumbnails || []).map((t: any) => t.image_url)];
+
+        if(videoData.marketing_copy?.email_newsletter) {
+            let markdownBody = '';
+            if (typeof videoData.marketing_copy.email_newsletter === 'object') {
+                markdownBody = videoData.marketing_copy.email_newsletter.body;
+            } else {
+                markdownBody = videoData.marketing_copy.email_newsletter;
+            }
+
+            const parts = markdownBody.split(/\[Image\]/g);
+            newsletterPreImageHtml = marked(parts[0]) as string;
+            if (parts.length > 1) {
+                newsletterPostImageHtml = marked(parts.slice(1).join('')) as string;
+            } else {
+                newsletterPostImageHtml = '';
+            }
+        }
+    }
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -244,6 +274,11 @@
           state.isGenerating = false;
       }
   }
+
+  function selectImageForNewsletter(imageUrl: string) {
+    selectedNewsletterImage = imageUrl;
+    isImageSelectorVisible = false;
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown}/>
@@ -381,10 +416,22 @@
                         <h4>Email Newsletter</h4>
                         {#if typeof videoData.marketing_copy.email_newsletter === 'object'}
                             <h5 class="newsletter-subject">{videoData.marketing_copy.email_newsletter.subject}</h5>
-                            <div class="copy-text">{@html marked(videoData.marketing_copy.email_newsletter.body)}</div>
-                        {:else}
-                             <div class="copy-text">{@html marked(videoData.marketing_copy.email_newsletter)}</div>
                         {/if}
+                        <div class="copy-text newsletter-container">
+                            {@html newsletterPreImageHtml}
+                            
+                            {#if selectedNewsletterImage}
+                                <img src={selectedNewsletterImage} alt="Selected newsletter visual" class="newsletter-image">
+                            {:else if availableImages.length > 0}
+                                <div class="image-placeholder">
+                                    <button class="button-secondary" on:click={() => isImageSelectorVisible = true}>
+                                        Select an Image
+                                    </button>
+                                </div>
+                            {/if}
+
+                            {@html newsletterPostImageHtml}
+                        </div>
                     </div>
                     {/if}
                 </div>
@@ -436,6 +483,27 @@
 <div class="modal-overlay" role="dialog" aria-modal="true" on:click={() => isImageModalVisible = false}>
     <button type="button" class="modal-close-button" on:click={() => isImageModalVisible = false}>&times;</button>
     <img class="modal-content-image" src={modalImageUrl} alt="Full size generated visual">
+</div>
+{/if}
+
+<!-- Image Selector Modal -->
+{#if isImageSelectorVisible}
+<div class="modal-overlay" role="dialog" aria-modal="true" on:click={() => isImageSelectorVisible = false}>
+    <div class="modal-content" on:click|stopPropagation>
+        <div class="modal-header">
+            <h3>Select an Image</h3>
+            <button type="button" class="modal-close-button" on:click={() => isImageSelectorVisible = false}>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="thumbnails-grid">
+                 {#each availableImages as imageUrl}
+                    <button class="thumbnail-selector" on:click={() => selectImageForNewsletter(imageUrl)}>
+                        <img src={imageUrl} alt="Selectable thumbnail">
+                    </button>
+                 {/each}
+            </div>
+        </div>
+    </div>
 </div>
 {/if}
 
@@ -661,6 +729,35 @@
     color: #374151;
 }
 
+.copy-text.newsletter-container {
+    overflow: auto; /* Simple clearfix to contain the floated element */
+}
+
+.newsletter-image {
+    float: right;
+    width: 250px;
+    max-width: 40%;
+    border-radius: 8px;
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.image-placeholder {
+    float: right;
+    width: 250px;
+    max-width: 40%;
+    min-height: 220px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
+    border: 2px dashed #e2e8f0;
+    border-radius: 8px;
+    background-color: #f8fafc;
+}
+
 /* Modal */
 .modal-overlay {
     position: fixed;
@@ -689,6 +786,53 @@
     max-width: 90vw;
     max-height: 90vh;
     object-fit: contain;
+}
+
+.modal-content {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    max-width: 800px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.modal-body {
+    overflow-y: auto;
+}
+
+.thumbnail-selector {
+    border: 2px solid transparent;
+    border-radius: 0.5rem;
+    padding: 0;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+.thumbnail-selector:hover {
+    border-color: #4F46E5;
+}
+.thumbnail-selector img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 
 /* Buttons */
