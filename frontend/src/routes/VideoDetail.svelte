@@ -225,7 +225,7 @@
     try {
         const response = await fetch(`/api/video/${params.id}/generate-prompts`, { 
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: await getHeaders(),
             body: JSON.stringify({ context: videoData.structured_data.summary })
         });
         if (!response.ok) {

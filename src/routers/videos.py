@@ -20,6 +20,7 @@ from ..event_bus import event_bus
 from ..security import decrypt_data, encrypt_data
 from .auth import get_current_user
 from ..video_processing import create_vertical_clip
+from ..agents.visuals import VisualsAgent
 
 router = APIRouter()
 
@@ -453,7 +454,7 @@ async def delete_video(video_id: str, current_user: dict = Depends(get_current_u
 
 @router.post("/api/video/{video_id}/generate-prompts")
 async def generate_prompts(video_id: str, request: Request, current_user: dict = Depends(get_current_user)):
-    """ Generate image prompts for a given video """
+    """ Generate image prompts for a given video using the VisualsAgent. """
     body = await request.json()
     context = body.get("context")
 
@@ -465,19 +466,35 @@ async def generate_prompts(video_id: str, request: Request, current_user: dict =
     doc = await video_doc_ref.get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Video not found")
-    if doc.to_dict().get("user_id") != current_user.get("uid"):
+    
+    video_data = doc.to_dict()
+    if video_data.get("user_id") != current_user.get("uid"):
         raise HTTPException(status_code=403, detail="Not authorized to generate prompts for this video.")
 
-    # This would call your LLM to generate prompts. For now, returning dummy data.
-    # In a real app, this would be: `prompts = await llm_service.generate_prompts(context)`
-    await asyncio.sleep(2) # Simulate network call
-    prompts = [
-        f"A cinematic shot of a computer screen showing code, reflecting the video's theme: '{context[:30]}...'",
-        f"An abstract visual representation of '{context.split()[0]} {context.split()[1]}'.",
-        "A minimalist graphic with a single, compelling icon related to the video's main topic.",
-        f"Photo of a person looking thoughtfully at a whiteboard with diagrams about '{context[:20]}...'"
-    ]
-    return JSONResponse(status_code=200, content={"prompts": prompts})
+    try:
+        # Instantiate the VisualsAgent
+        # In a real app, you might use a dependency injection system for this
+        visuals_agent = VisualsAgent(
+            project_id=os.environ.get("GCP_PROJECT_ID"),
+            location=os.environ.get("GCP_REGION"),
+            bucket_name=os.environ.get("GCS_BUCKET_NAME"),
+            api_key=os.environ.get("GEMINI_API_KEY"),
+            model_name=os.environ.get("IMAGEN_MODEL_NAME", "imagegeneration@006")
+        )
+
+        # The visuals agent has a method to generate prompts based on summary and hook
+        # We'll use the provided context as both for this on-demand case.
+        prompts = await visuals_agent._generate_image_prompts(
+            structured_data={"summary": context},
+            substack_gcs_uri=video_data.get("substack_gcs_uri") # Pass this for more context if available
+        )
+
+        return JSONResponse(status_code=200, content={"prompts": prompts})
+
+    except Exception as e:
+        import traceback
+        print(f"Error generating prompts with VisualsAgent: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Failed to generate prompts.")
 
 class ImageGenerationRequest(BaseModel):
     prompt: str
