@@ -1,74 +1,43 @@
 <script lang="ts">
-  import Router, { push, location } from 'svelte-spa-router';
-  import AuthButton from './components/AuthButton.svelte';
-  import logoUrl from './assets/channel-flow-logo.png';
+  import Router, { link, location } from 'svelte-spa-router';
+
+  import Header from './components/Header.svelte';
   import Home from './routes/Home.svelte';
-  import VideoDetail from './routes/VideoDetail.svelte';
   import Dashboard from './routes/Dashboard.svelte';
+  import VideoDetail from './routes/VideoDetail.svelte';
+  import SystemFlow from './routes/SystemFlow.svelte';
+  import Maintenance from './routes/Maintenance.svelte';
 
   const routes = {
     '/': Home,
-    '/video/:id': VideoDetail,
     '/dashboard': Dashboard,
-    '*': Home, // Fallback for any other route
-  };
+    '/video/:id': VideoDetail,
+    '/system-flow': SystemFlow,
+    '/maintenance': Maintenance,
 
+    // Catch-all
+    '*': Home,
+  };
 </script>
 
-<svelte:head>
-  {#if $location === '/dashboard'}
-    <style>
-      body {
-        display: block;
-        justify-content: initial;
-        align-items: initial;
-        height: auto;
-        width: 100%;
-        margin: 0;
-        padding: 70px;
-      }
-    </style>
-  {/if}
-</svelte:head>
+<Header />
 
-<div class="main-container" class:full-width={$location === '/dashboard'}>
-  <!-- Header navigation -->
-  <div class="header-nav">
-    <div class="header-left">
-      <button class="hamburger-menu" aria-label="Open navigation menu">
-        <span class="hamburger-line"></span>
-        <span class="hamburger-line"></span>
-        <span class="hamburger-line"></span>
-      </button>
-      <a href="/" on:click|preventDefault={() => push('/')} class="logo-link">
-        <img src={logoUrl} alt="ChannelFlow Logo" class="logo-icon" />
-      </a>
-    </div>
-    <nav class="nav-links">
-      <a href="/" on:click|preventDefault={() => push('/')} class="nav-link button-secondary">New Ingestion</a>
-      <a href="#/dashboard" class="nav-link button-secondary">Content Dashboard</a>
-      <a href="/management" class="nav-link button-secondary">Maintenance</a>
-      <div class="user-auth">
-        <AuthButton />
-      </div>
-    </nav>
-  </div>
-
-  <main>
-    <Router {routes} />
-  </main>
-</div>
+<main>
+  <Router {routes}/>
+</main>
 
 <style>
-  .main-container {
-    display: block;
+  :global(*) {
+    box-sizing: border-box;
   }
-  main {
-    padding: 1rem;
-  }
-  
-  :global(.main-container.full-width) {
-    max-width: none;
-    padding: 0;
+
+  :global(body) {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #f8fafc;
   }
 </style>

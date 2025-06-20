@@ -182,59 +182,76 @@
   });
 </script>
 
-<div class="content-column">
-  <h1 class="mb-2">Amplify your message.</h1>
-  <p class="mb-4">
-    Paste a YouTube link to transform a single video into a complete,
-    multi-platform marketing campaign, orchestrated by autonomous AI agents.
-  </p>
-<p class="mb-6">
-   {#if $accessToken}
-    {#if isYouTubeConnected}
-      <div class="ingestion-controls">
-        <div class="youtube-connected-status">
-          <span class="icon">✅</span>
-          <span class="status-text">YouTube Connected</span>
-          <button on:click={handleDisconnect} class="disconnect-button" title="Disconnect YouTube Account">×</button>
+<div class="home-container">
+  <div class="content-column">
+    <h1 class="mb-2">Amplify your message.</h1>
+    <p class="mb-4">
+      Paste a YouTube link to transform a single video into a complete,
+      multi-platform marketing campaign, orchestrated by autonomous AI agents.
+    </p>
+  <p class="mb-6">
+     {#if $accessToken}
+      {#if isYouTubeConnected}
+        <div class="ingestion-controls">
+          <div class="youtube-connected-status">
+            <span class="icon">✅</span>
+            <span class="status-text">YouTube Connected</span>
+            <button on:click={handleDisconnect} class="disconnect-button" title="Disconnect YouTube Account">×</button>
+          </div>
+          <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleNewIngestion} />
         </div>
-        <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleNewIngestion} />
-      </div>
-    {:else}
-      <div class="youtube-connect-prompt">
-        <p>To get started, connect your YouTube account.</p>
-        <ConnectYouTubeButton on:connected={onYouTubeConnected} />
+      {:else}
+        <div class="youtube-connect-prompt">
+          <p>To get started, connect your YouTube account.</p>
+          <ConnectYouTubeButton on:connected={onYouTubeConnected} />
+        </div>
+      {/if}
+    {/if}
+  </p>
+   
+
+    {#if $videoStatus}
+      <div class="processing-section">
+        <div class="workflow-controls">
+          <h3 class="text-lg font-semibold text-gray-700">Live Workflow</h3>
+          <button class="button-secondary" on:click={() => { isRestartMode = !isRestartMode; }}>
+            {#if isRestartMode}
+              Cancel
+            {:else}
+              Restart From Stage...
+            {/if}
+          </button>
+        </div>
+         {#if isRestartMode}
+          <p class="restart-prompt">Select a completed stage to restart from.</p>
+        {/if}
+        <Workflow 
+          bind:isRestartMode 
+          {stages}
+          on:retrigger={handleRetrigger} 
+        />
+        <StatusLog />
       </div>
     {/if}
-  {/if}
-</p>
- 
-
-  {#if $videoStatus}
-    <div class="processing-section">
-      <div class="workflow-controls">
-        <h3 class="text-lg font-semibold text-gray-700">Live Workflow</h3>
-        <button class="button-secondary" on:click={() => { isRestartMode = !isRestartMode; }}>
-          {#if isRestartMode}
-            Cancel
-          {:else}
-            Restart From Stage...
-          {/if}
-        </button>
-      </div>
-       {#if isRestartMode}
-        <p class="restart-prompt">Select a completed stage to restart from.</p>
-      {/if}
-      <Workflow 
-        bind:isRestartMode 
-        {stages}
-        on:retrigger={handleRetrigger} 
-      />
-      <StatusLog />
-    </div>
-  {/if}
+  </div>
 </div>
 
 <style>
+  .home-container {
+    display: flex;
+    justify-content: center;
+    padding: 2rem;
+  }
+
+  .content-column {
+    max-width: 800px;
+    width: 100%;
+    background-color: #ffffff;
+    padding: 2.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+  }
+
   .restart-prompt {
     font-size: 0.9rem;
     font-style: italic;

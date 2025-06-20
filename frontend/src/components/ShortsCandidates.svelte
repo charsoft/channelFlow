@@ -6,7 +6,6 @@
   // --- Props ---
   export let candidates: any[] = [];
   export let videoId: string;
-  export let videoTitle: string;
   
   // --- Local State ---
   let shortsWithState: any[] = [];
@@ -88,7 +87,9 @@
           <div class="short-actions">
             {#if short.generated_clip_url}
               <div class="clip-preview-container">
-                <video controls src={short.generated_clip_url} width="200" preload="metadata"></video>
+                <video controls src={short.generated_clip_url} width="200" preload="metadata">
+                  <track kind="captions" />
+                </video>
                 <div class="clip-buttons">
                   <a href={short.generated_clip_url} download="{sanitizeTitleForFilename(short.suggested_title)}.mp4" class="button-secondary">Download</a>
                   <button class="button-danger" on:click={() => generateClip(index)} disabled={short.isGenerating}>

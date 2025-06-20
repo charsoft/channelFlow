@@ -20,6 +20,7 @@
   let videos: Video[] = [];
   let isLoading = true;
   let errorMessage = '';
+  let activeMenu = ''; // Holds the video_id of the active menu
 
   onMount(async () => {
     try {
@@ -47,11 +48,21 @@
     return 'No hook or summary available.';
   }
 
-  function getStatusClass(status: string): string {
-    if (status.includes('failed')) return 'status-failed';
-    if (status === 'published' || status === 'completed') return 'status-success'; // Added 'completed'
-    if (status) return 'status-in-progress';
-    return 'status-unknown';
+  function getDisplayStatus(video: Video): { text: string; class: string } {
+    const status = video.status;
+
+    // If visuals failed but user generated some manually, consider it a success.
+    if (status === 'visuals_failed' && video.thumbnails && video.thumbnails.length > 0) {
+      return { text: 'Visuals Generated', class: 'status-success' };
+    }
+    
+    const statusText = status.replace(/_/g, ' ');
+
+    if (status.includes('failed')) return { text: statusText, class: 'status-failed' };
+    if (status === 'published' || status.includes('completed') || status.includes('generated')) return { text: statusText, class: 'status-success' };
+    if (status) return { text: statusText, class: 'status-in-progress' };
+    
+    return { text: 'Unknown', class: 'status-unknown' };
   }
 
   function confirmAndReprocess(event: MouseEvent, videoId: string, videoUrl: string) {
@@ -72,6 +83,52 @@
     });
   }
   
+  async function retriggerStage(event: MouseEvent, videoId: string) {
+    event.stopPropagation();
+    activeMenu = ''; // Close menu
+
+    const { value: stage } = await Swal.fire({
+      title: 'Select a stage to re-trigger',
+      input: 'select',
+      inputOptions: {
+        'transcription': 'Transcription',
+        'analysis': 'Analysis',
+        'copywriting': 'Copywriting',
+        'visuals': 'Visuals'
+      },
+      inputPlaceholder: 'Select a stage',
+      showCancelButton: true,
+      confirmButtonText: 'Re-trigger',
+    });
+
+    if (stage) {
+      try {
+        const response = await fetch('/api/re-trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ video_id: videoId, stage: stage })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to re-trigger stage.');
+        }
+
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: `Stage '${stage}' re-triggered!`,
+          showConfirmButton: false,
+          timer: 3000
+        });
+
+      } catch (error: any) {
+        Swal.fire('Error', error.message, 'error');
+      }
+    }
+  }
+
   async function handleCleanup() {
       const result = await Swal.fire({
           title: 'Are you sure?',
@@ -112,90 +169,87 @@
   }
 </script>
 
-<div class="management-container">
-    <div class="content-body">
-        <h1>Content Dashboard</h1>
-        <p>Review and manage all processed video content.</p>
-        
-        {#if isLoading}
-            <p>Loading videos...</p>
-        {:else if errorMessage}
-            <p class="error-message">{errorMessage}</p>
-        {:else if videos.length === 0}
-            <p>No processed videos found.</p>
-        {:else}
-            <div id="videos-grid" class="videos-grid">
-                {#each videos as video (video.video_id)}
-                    <a href={`#/video/${video.video_id}`} class="video-card">
-                        <div class="card-thumbnail">
-                            <img src={`https://img.youtube.com/vi/${video.video_id}/hqdefault.jpg`} alt="Video thumbnail">
-                            <span class="card-status {getStatusClass(video.status)}">
-                                {video.status.replace(/_/g, ' ')}
+<div class="dashboard-container">
+    <h1>Content Dashboard</h1>
+    <p>Review and manage all processed video content.</p>
+    
+    {#if isLoading}
+        <p>Loading videos...</p>
+    {:else if errorMessage}
+        <p class="error-message">{errorMessage}</p>
+    {:else if videos.length === 0}
+        <p>No processed videos found.</p>
+    {:else}
+        <div class="videos-grid">
+            {#each videos as video (video.video_id)}
+                {@const displayStatus = getDisplayStatus(video)}
+                <a href={`#/video/${video.video_id}`} class="video-card">
+                    <div class="card-thumbnail">
+                        <img src={`https://img.youtube.com/vi/${video.video_id}/hqdefault.jpg`} alt="Video thumbnail">
+                        <span class="card-status {displayStatus.class}">
+                            {displayStatus.text}
+                        </span>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">{video.video_title || 'Untitled Video'}</h3>
+                        <p class="card-hook">{getHook(video)}</p>
+                    </div>
+                    <div class="card-footer">
+                        <div class="footer-thumbnails">
+                            {#if video.thumbnails && video.thumbnails.length > 0}
+                                {#each video.thumbnails as thumbUrl}
+                                    <div class="footer-thumbnail" style="background-image: url({thumbUrl})"></div>
+                                {/each}
+                            {:else}
+                                <div class="footer-thumbnail-placeholder"></div>
+                                <div class="footer-thumbnail-placeholder"></div>
+                                <div class="footer-thumbnail-placeholder"></div>
+                                <div class="footer-thumbnail-placeholder"></div>
+                            {/if}
+                        </div>
+                        <div class="footer-meta">
+                            <span class="processed-date">
+                                Processed: {video.received_at ? new Date(video.received_at).toLocaleDateString() : 'Not available'}
                             </span>
-                        </div>
-                        <div class="card-content">
-                            <h3 class="card-title">{video.video_title || 'Untitled Video'}</h3>
-                            <p class="card-hook">{getHook(video)}</p>
-                        </div>
-                        <div class="card-footer">
-                            <div class="footer-thumbnails">
-                                {#if video.thumbnails && video.thumbnails.length > 0}
-                                    {#each video.thumbnails as thumbUrl}
-                                        <div class="footer-thumbnail" style="background-image: url({thumbUrl})"></div>
-                                    {/each}
-                                {:else}
-                                    <div class="footer-thumbnail-placeholder"></div>
-                                    <div class="footer-thumbnail-placeholder"></div>
-                                    <div class="footer-thumbnail-placeholder"></div>
-                                    <div class="footer-thumbnail-placeholder"></div>
+                            
+                            <div class="actions-menu-container">
+                                <button class="actions-button" on:click|stopPropagation|preventDefault={() => activeMenu = activeMenu === video.video_id ? '' : video.video_id}>
+                                    Actions ▾
+                                </button>
+                                {#if activeMenu === video.video_id}
+                                <div class="actions-menu" role="menu" on:click|stopPropagation>
+                                    <button class="menu-item" role="menuitem" on:click={(e) => retriggerStage(e, video.video_id)}>Re-trigger Stage</button>
+                                    <button class="menu-item reprocess" role="menuitem" on:click={(e) => confirmAndReprocess(e, video.video_id, video.video_url)}>Reprocess All</button>
+                                </div>
                                 {/if}
                             </div>
-                            <div class="footer-meta">
-                                <span class="processed-date">
-                                    Processed: {video.received_at ? new Date(video.received_at).toLocaleDateString() : 'Not available'}
-                                </span>
-                                <button class="reprocess-button" on:click={(e) => confirmAndReprocess(e, video.video_id, video.video_url)}>
-                                    Reprocess
-                                </button>
-                            </div>
                         </div>
-                    </a>
-                {/each}
-            </div>
-        {/if}
-    </div>
-
-    <div class="maintenance-section">
-        <h2>Site Maintenance</h2>
-        <div class="maintenance-controls">
-            <button class="button-danger" on:click={handleCleanup}>Clean Up Video Cache</button>
-            <p class="description">
-                Immediately deletes all temporarily cached video files from the server.
-            </p>
+                    </div>
+                </a>
+            {/each}
         </div>
-    </div>
+    {/if}
 </div>
 
 <style>
-    :global(body) {
-        background-color: #f8fafc; /* A light gray background */
-    }
-
-    .management-container {
-        width: 100%; /* Use full available width */
-        margin: 0;
-        padding: 2rem;
+    .dashboard-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2.5rem;
         font-family: 'Inter', sans-serif;
+        background-color: #ffffff;
+        border-radius: 0.75rem;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
     }
 
-    .content-body h1 {
+    h1 {
         font-size: 2.5rem;
         font-weight: 800;
         margin-bottom: 0.5rem;
         color: #1e293b;
     }
 
-    .content-body p {
+    p {
         font-size: 1.1rem;
         color: #64748b;
         margin-bottom: 2rem;
@@ -302,57 +356,62 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 0.8rem;
-        color: #64748b;
+        width: 100%;
     }
 
     .processed-date {
-        /* styles for date */
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    
+    .actions-menu-container {
+        position: relative;
     }
 
-    .reprocess-button {
-        background: none;
-        border: 1px solid #d1d5db;
+    .actions-button {
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
         color: #475569;
-        padding: 0.25rem 0.5rem;
-        font-size: 0.75rem;
+        padding: 0.3rem 0.8rem;
+        font-size: 0.8rem;
         border-radius: 0.375rem;
         cursor: pointer;
-        transition: background-color 0.2s;
     }
-    .reprocess-button:hover {
-        background-color: #f3f4f6;
+    .actions-button:hover {
+        background: #e2e8f0;
+    }
+
+    .actions-menu {
+        position: absolute;
+        bottom: 100%; /* Position above the button */
+        right: 0;
+        background-color: white;
+        border-radius: 0.375rem;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+        z-index: 10;
+        width: 150px;
+        overflow: hidden;
     }
     
-    .maintenance-section {
-        margin-top: 4rem;
-        padding-top: 2rem;
-        border-top: 1px solid #e2e8f0;
-    }
-
-    .maintenance-section h2 {
-        font-size: 1.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .button-danger {
-        background-color: #DC2626;
-        color: white;
-        padding: 0.5rem 1rem;
+    .menu-item {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 0.75rem 1rem;
+        background: none;
         border: none;
-        border-radius: 0.5rem;
-        font-weight: 600;
         cursor: pointer;
-        transition: background-color 0.3s;
-    }
-    
-    .button-danger:hover {
-        background-color: #B91C1C;
+        font-size: 0.9rem;
     }
 
-    .description {
-        font-size: 0.9rem;
-        color: #64748b;
-        margin-top: 0.5rem;
+    .menu-item:hover {
+        background-color: #f8fafc;
+    }
+
+    .menu-item.reprocess {
+        color: #b91c1c;
+    }
+    .menu-item.reprocess:hover {
+        background-color: #fee2e2;
     }
 </style> 

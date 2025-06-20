@@ -73,8 +73,9 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && isImageModalVisible) {
-      isImageModalVisible = false;
+    if (event.key === 'Escape') {
+        if (isImageModalVisible) isImageModalVisible = false;
+        if (isImageSelectorVisible) isImageSelectorVisible = false;
     }
   }
 
@@ -290,25 +291,15 @@
 {:else if videoData}
 <div class="detail-container">
     <header class="detail-header">
-        <div class="header-top-row">
-            <div class="header-left">
-                <a href="/" class="logo-link">
-                    <img src="/channel-flow-logo.png" alt="ChannelFlow Logo" class="logo-icon">
-                </a>
-            </div>
-            <div class="header-top-right">
-                <span class="video-meta-item">
-                    Processed: {videoData.received_at ? new Date(videoData.received_at).toLocaleDateString() : 'N/A'}
-                </span>
-                <div class="status-banner {getStatusClass(videoData.status)}">
-                    Status: {videoData.status.replace(/_/g, ' ')}
-                </div>
-                <nav class="nav-links">
-                    <a href="#/dashboard" class="nav-link button-secondary">← Back to Dashboard</a>
-                </nav>
+        <h1>{videoData.video_title || 'Untitled Video'}</h1>
+        <div class="header-meta">
+            <span class="video-meta-item">
+                Processed: {videoData.received_at ? new Date(videoData.received_at).toLocaleDateString() : 'N/A'}
+            </span>
+            <div class="status-banner {getStatusClass(videoData.status)}">
+                Status: {videoData.status.replace(/_/g, ' ')}
             </div>
         </div>
-        <h1>{videoData.video_title || 'Untitled Video'}</h1>
     </header>
 
     <div class="video-detail-content">
@@ -489,7 +480,7 @@
 <!-- Image Selector Modal -->
 {#if isImageSelectorVisible}
 <div class="modal-overlay" role="dialog" aria-modal="true" on:click={() => isImageSelectorVisible = false}>
-    <div class="modal-content" on:click|stopPropagation>
+    <div class="modal-content" role="document" on:click|stopPropagation>
         <div class="modal-header">
             <h3>Select an Image</h3>
             <button type="button" class="modal-close-button" on:click={() => isImageSelectorVisible = false}>&times;</button>
@@ -511,11 +502,13 @@
 <style>
 /* Base Layout */
 .detail-container {
-    width: 100%;
     max-width: 1400px;
     margin: 0 auto;
     padding: 2rem;
     font-family: 'Inter', sans-serif;
+    background-color: #ffffff;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
 }
 
 .loader {
@@ -537,16 +530,11 @@
 .detail-header {
     margin-bottom: 2rem;
 }
-.header-top-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-.header-left, .header-top-right {
+.header-meta {
     display: flex;
     align-items: center;
     gap: 1.5rem;
+    margin-top: 1rem;
 }
 .logo-icon { height: 50px; }
 .video-meta-item { color: #64748b; font-size: 0.9rem; }
@@ -882,11 +870,7 @@
     align-items: center;
     gap: 0.5rem;
 }
-.control-group label {
-    font-weight: 600;
-    color: #374151;
-}
-#model-select {
+select {
     padding: 0.5rem;
     border-radius: 0.375rem;
     border: 1px solid #d1d5db;
@@ -955,19 +939,14 @@
         padding: 1rem;
     }
 
-    .header-top-row {
+    .header-meta {
         flex-direction: column;
         align-items: flex-start;
-        gap: 1rem;
-    }
-
-    .header-top-right {
-        width: 100%;
-        justify-content: space-between;
+        gap: 0.75rem;
     }
 
     .detail-header h1 {
-        font-size: 1.8rem;
+        font-size: 2rem;
     }
 
     .overview-grid {
