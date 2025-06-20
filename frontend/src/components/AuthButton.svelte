@@ -2,7 +2,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Swal from 'sweetalert2';
-  import { accessToken, setAccessToken, clearAccessToken } from '../lib/auth';
+  import { push } from 'svelte-spa-router';
+  import { accessToken, user, setAccessToken, clearAccessToken } from '../lib/auth';
   import { loginWithGoogle } from '../lib/api';
 
   let clientId: string;
@@ -90,13 +91,32 @@
 
   function handleLogout() {
     console.log('[AuthButton DBG]: handleLogout() called.');
+    push('/');
     clearAccessToken();
     Swal.fire('Logged Out', 'You have been signed out.', 'info');
   }
 </script>
 
 {#if $accessToken}
-    <button on:click={handleLogout} class="button-secondary">Logout</button>
+    <div class="user-info">
+      {#if $user}
+        <span class="username">{$user.name}</span>
+      {/if}
+      <button on:click={handleLogout} class="button-outline">Logout</button>
+    </div>
 {:else}
     <div id="gsi-button-container"></div>
 {/if}
+
+<style>
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .username {
+    font-weight: 600;
+    color: var(--text-color);
+  }
+</style>

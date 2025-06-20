@@ -1,6 +1,7 @@
 <script lang="ts">
     import { link } from 'svelte-spa-router';
     import logoUrl from '../assets/channel-flow-logo.png';
+    import AuthButton from './AuthButton.svelte';
 </script>
 
 <header class="app-header">
@@ -10,10 +11,13 @@
             <span class="logo-text">ChannelFlow</span>
         </a>
         <nav class="main-nav">
-            <a href="/dashboard" use:link class="nav-link">Dashboard</a>
-            <a href="/system-flow" use:link class="nav-link">System Flow</a>
-            <a href="/maintenance" use:link class="nav-link">Maintenance</a>
+            <a href="/dashboard" use:link class="nav-link button-outline">Dashboard</a>
+            <a href="/system-flow" use:link class="nav-link button-outline">System Flow</a>
+            <a href="/maintenance" use:link class="nav-link button-outline">Maintenance</a>
         </nav>
+        <div class="header-right">
+            <AuthButton />
+        </div>
     </div>
 </header>
 
@@ -42,7 +46,7 @@
         align-items: center;
         gap: 0.75rem;
         text-decoration: none;
-        color: inherit;
+        color: #1e293b;
     }
 
     .logo-icon {
@@ -52,7 +56,6 @@
     .logo-text {
         font-size: 1.25rem;
         font-weight: 700;
-        color: #1e293b;
     }
 
     .main-nav {
@@ -65,8 +68,15 @@
         font-weight: 600;
         color: #4b5563;
         transition: color 0.2s;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
     }
     .nav-link:hover {
         color: #4F46E5;
+        background-color: #f0f5ff;
+    }
+
+    .header-right {
+        /* This will push the auth button to the far right */
     }
 </style> 

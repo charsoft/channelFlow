@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "firebase": "^11.9.1",
+    "jwt-decode": "^4.0.0",
     "marked": "^15.0.12",
     "sweetalert2": "^11.10.8"
   }
