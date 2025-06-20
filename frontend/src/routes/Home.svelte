@@ -13,6 +13,7 @@
   let isYouTubeConnected = false;
   let isRestartMode = false;
   let currentVideoId: string | null = null;
+  $: currentVideoId = $videoStatus?.video_id ?? null;
 
    // 1) Check once on page load (if the user is already logged in)
   onMount(() => {
@@ -45,7 +46,7 @@
       Swal.fire('Error', err.message, 'error');
     }
   }
-  
+
   $: if ($videoStatus?.video_id) {
     currentVideoId = $videoStatus.video_id;
   }
@@ -137,7 +138,7 @@
   };
 // 2) Derive `stages` reactively from your store + constants:
   $: stages = agents.map((agent) => {
-    // default to “pending”
+    // default to "pending"
     let state: 'pending' | 'active' | 'completed' | 'failed' = 'pending';
 
     if ($videoStatus?.status) {
@@ -149,13 +150,13 @@
         const thisIndex    = agents.indexOf(agent);
 
         if (agent === currentAgent) {
-          // the one that’s running or just finished
+          // the one that's running or just finished
           state = currentState;
         } else if (thisIndex < currentIndex) {
           // any agent before it must have completed already
           state = 'completed';
         }
-        // otherwise leave it as “pending”
+        // otherwise leave it as "pending"
       }
     }
 
@@ -178,7 +179,7 @@
           <span class="status-text">YouTube Connected</span>
           <button on:click={handleDisconnect} class="disconnect-button" title="Disconnect YouTube Account">×</button>
         </div>
-        <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleView} />
+        <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleNewIngestion} />
       </div>
     {:else}
       <div class="youtube-connect-prompt">
@@ -219,10 +220,10 @@
   .restart-prompt {
     font-size: 0.9rem;
     font-style: italic;
-    color: #4f46e5; /* indigo-600 */
+    color: #4b5563; /* gray-600 */
     margin: 0.5rem 0;
     padding: 0.5rem;
-    background-color: #eef2ff;
+    background-color: #f3f4f6; /* gray-100 */
     border-radius: 0.375rem;
   }
   .workflow-controls {

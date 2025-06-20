@@ -6,7 +6,7 @@
    * Now we accept a pre-built list of stages,
    * each with its `name` and one of four statuses.
    */
-  export let isRestartMode = false;
+  export let isRestartMode = true;
 
   export let stages: {
     name: string;
@@ -34,11 +34,19 @@
        class:success={stage.status === 'completed'}
        class:active={stage.status === 'active'}
        class:failed={stage.status === 'failed'}
+       class:pending={stage.status === 'pending'}
        class:restart-active={isRestartMode && stage.status === 'completed'}
        on:click={() => handleStepClick(stage)}
       disabled={isRestartMode && stage.status !== 'completed'}
      >
-       {stage.name}
+       <div class="workflow-step-container">
+        <span>{stage.name}</span>
+        {#if isRestartMode && stage.status === 'completed'}
+          <button class="retrigger-button" on:click|stopPropagation={() => handleStepClick(stage)}>
+            Restart from here
+          </button>
+        {/if}
+      </div>
      </button>
 
      {#if i < stages.length - 1}
@@ -63,15 +71,13 @@
     align-items: center;
     flex-wrap: wrap; /* Allows steps to wrap on smaller screens */
   }
-  .workflow-step {
+  button.workflow-step {
     /* Base styles */
     padding: 0.5rem 1rem;
     border-radius: 0.375rem; /* rounded-md */
     font-weight: 500; /* font-medium */
-    background-color: #e5e7eb; /* bg-gray-200 */
-    color: #374151; /* text-gray-700 */
     transition: all 0.3s ease;
-    border: 1px solid #d1d5db; /* Default border */
+    border: 1px solid; /* Default border, color will be set by status */
     
     /* Button resets */
     font-family: inherit;
@@ -80,15 +86,20 @@
     text-align: center;
     cursor: default; /* Not clickable by default */
   }
+  .workflow-step.pending {
+    background-color: #e5e7eb; /* bg-gray-200 */
+    color: #374151; /* text-gray-700 */
+    border-color: #d1d5db; /* border-gray-300 */
+  }
   .workflow-step.success {
     background-color: #dcfce7; /* bg-green-100 */
     color: #166534; /* text-green-800 */
     border-color: #86efac; /* border-green-300 */
   }
   .workflow-step.active {
-    background-color: #cffafe; /* bg-cyan-100 */
-    color: #0e7490; /* text-cyan-800 */
-    border-color: #67e8f9; /* border-cyan-300 */
+    background-color: #fefce8; /* bg-yellow-50 */
+    color: #854d0e; /* text-yellow-800 */
+    border-color: #fde047; /* border-yellow-300 */
     transform: scale(1.05);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   }
@@ -99,7 +110,7 @@
   }
   .workflow-step.restart-active {
     cursor: pointer;
-    box-shadow: 0 0 0 3px #4f46e5; /* A strong indigo ring to indicate it's clickable */
+    box-shadow: 0 0 0 3px #9ca3af; /* A gray ring to indicate it's clickable */
   }
   .workflow-arrow {
     width: 0;
