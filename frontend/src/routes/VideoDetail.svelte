@@ -1,8 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Swal from 'sweetalert2';
+  import { marked } from 'marked';
 
   import { listenForUpdates } from '../lib/api';
+  import { sanitizeTitleForFilename } from '../lib/utils';
+  import ShortsCandidates from '../components/ShortsCandidates.svelte';
 
   export let params: { id?: string } = {};
 
@@ -19,6 +22,8 @@
   let isEditingPrompts = false;
   let editedPrompts: { [key: number]: string } = {};
   let promptGenerationStates: { [key: number]: { selectedModel: string; isGenerating: boolean } } = {};
+  let substackHtml = '';
+  let isLoadingSubstack = false;
 
   const imagenModels = [
     'imagen-4.0-generate-preview-06-06',
@@ -32,6 +37,10 @@
   onMount(() => {
     loadVideoDetails();
   });
+
+  $: if (activeTab === 'copy') {
+    loadSubstackContent();
+  }
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' && isImageModalVisible) {
@@ -64,6 +73,24 @@
     }
   }
 
+  async function loadSubstackContent() {
+    if (!videoData?.substack_gcs_uri || isLoadingSubstack || substackHtml) return;
+    
+    isLoadingSubstack = true;
+    try {
+        const url = videoData.substack_gcs_uri.replace("gs://", "https://storage.googleapis.com/");
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to fetch article content.');
+        const markdown = await response.text();
+        substackHtml = marked(markdown) as string;
+    } catch (error) {
+        console.error("Error loading Substack content:", error);
+        // Optionally, show an error message to the user
+    } finally {
+        isLoadingSubstack = false;
+    }
+  }
+
   // --- Helpers ---
   function getStatusClass(status: string): string {
     if (!status) return 'status-unknown';
@@ -71,12 +98,6 @@
     if (status === 'published' || status.includes('completed') || status.includes('generated')) return 'status-success';
     if (status) return 'status-in-progress';
     return 'status-unknown';
-  }
-
-  function sanitizeTitleForFilename(title: string): string {
-    if (!title) return 'video_clip';
-    const sanitized = title.replace(/[*:"<>?|/\\.]/g, '').replace(/\s+/g, '_').toLowerCase();
-    return (sanitized.substring(0, 80) || 'video_clip');
   }
 
   // --- Event Handlers ---
@@ -259,7 +280,8 @@
         <!-- Tab Navigation -->
         <div class="tab-nav">
             <button class="tab-link" class:active={activeTab === 'overview'} on:click={() => activeTab = 'overview'}>Overview</button>
-            <button class="tab-link" class:active={activeTab === 'assets'} on:click={() => activeTab = 'assets'}>Generated Assets</button>
+            <button class="tab-link" class:active={activeTab === 'images'} on:click={() => activeTab = 'images'}>Generated Images</button>
+            <button class="tab-link" class:active={activeTab === 'copy'} on:click={() => activeTab = 'copy'}>Generated Copy</button>
             <button class="tab-link" class:active={activeTab === 'shorts'} on:click={() => activeTab = 'shorts'}>Shorts Candidates</button>
         </div>
 
@@ -287,7 +309,7 @@
         </div>
         {/if}
         
-        {#if activeTab === 'assets'}
+        {#if activeTab === 'images'}
         <div class="tab-content active">
              <div class="detail-section">
                 <h2>Generated Thumbnails</h2>
@@ -339,7 +361,11 @@
                     {/each}
                 </ul>
             </div>
+        </div>
+        {/if}
 
+        {#if activeTab === 'copy'}
+        <div class="tab-content active">
             {#if videoData.marketing_copy}
             <div class="detail-section">
                 <h2>Generated Copy</h2>
@@ -347,7 +373,7 @@
                     {#if videoData.marketing_copy.facebook_post}
                     <div class="copy-asset-card">
                         <h4>Facebook / Instagram Post</h4>
-                        <div contenteditable="true" class="copy-text">{@html videoData.marketing_copy.facebook_post}</div>
+                        <div class="copy-text">{@html videoData.marketing_copy.facebook_post}</div>
                     </div>
                     {/if}
                      {#if videoData.marketing_copy.email_newsletter}
@@ -355,9 +381,9 @@
                         <h4>Email Newsletter</h4>
                         {#if typeof videoData.marketing_copy.email_newsletter === 'object'}
                             <h5 class="newsletter-subject">{videoData.marketing_copy.email_newsletter.subject}</h5>
-                            <div contenteditable="true" class="copy-text">{@html videoData.marketing_copy.email_newsletter.body}</div>
+                            <div class="copy-text">{@html marked(videoData.marketing_copy.email_newsletter.body)}</div>
                         {:else}
-                             <div contenteditable="true" class="copy-text">{@html videoData.marketing_copy.email_newsletter}</div>
+                             <div class="copy-text">{@html marked(videoData.marketing_copy.email_newsletter)}</div>
                         {/if}
                     </div>
                     {/if}
@@ -367,11 +393,26 @@
 
             {#if videoData.substack_gcs_uri}
              <div class="detail-section">
-                 <h2>Substack Article</h2>
+                <h2>Substack Article</h2>
+                <div class="substack-preview">
+                    {#if isLoadingSubstack}
+                        <div class="loader-small"></div>
+                    {:else if substackHtml}
+                        <div class="copy-text">
+                            {@html substackHtml}
+                        </div>
+                    {/if}
+                </div>
                 <a href={videoData.substack_gcs_uri.replace("gs://", "https://storage.googleapis.com/")} class="button-link" download>
                     Download Formatted Article
                 </a>
              </div>
+            {/if}
+
+            {#if !videoData.marketing_copy && !videoData.substack_gcs_uri}
+                <div class="detail-section">
+                    <p>No generated copy is available for this video yet.</p>
+                </div>
             {/if}
         </div>
         {/if}
@@ -379,7 +420,11 @@
         {#if activeTab === 'shorts'}
         <div class="tab-content active">
              <!-- Shorts content will go here -->
-             <p>Shorts candidates are under construction.</p>
+            <ShortsCandidates
+                candidates={videoData.structured_data?.shorts_candidates || []}
+                videoId={videoData.video_id}
+                videoTitle={videoData.video_title}
+            />
         </div>
         {/if}
     </div>
@@ -798,6 +843,20 @@
     .prompt-controls {
         justify-content: space-between;
     }
+}
+
+.substack-preview {
+    margin-bottom: 1rem;
+}
+
+.loader-small {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #4F46E5;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 2rem auto;
 }
 </style>
 

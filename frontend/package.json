@@ -13,6 +13,7 @@
     "@sveltejs/vite-plugin-svelte": "^3.0.2",
     "@tsconfig/svelte": "^5.0.4",
     "@types/google.accounts": "^0.0.14",
+    "@types/marked": "^5.0.2",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
     "svelte": "^4.2.12",
@@ -25,6 +26,7 @@
   },
   "dependencies": {
     "firebase": "^11.9.1",
+    "marked": "^15.0.12",
     "sweetalert2": "^11.10.8"
   }
 }
