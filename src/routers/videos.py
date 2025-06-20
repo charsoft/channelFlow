@@ -62,17 +62,11 @@ async def ingest_url(request: IngestUrlRequest, current_user: dict = Depends(get
         doc = await video_doc_ref.get()
 
         if doc.exists and not request.force:
-            print(f"Video {video_id} already processed. Returning cached data.")
-            data = doc.to_dict()
-            for key, value in data.items():
-                if isinstance(value, datetime):
-                    data[key] = value.isoformat()
-            response_data = {
-                "status": "exists",
-                "current_stage": data.get("status", "unknown"),
-                "data": data
-            }
-            return JSONResponse(status_code=200, content=response_data)
+            print(f"Video {video_id} already exists. Returning existing video_id to trigger status stream.")
+            # The frontend will immediately connect to the SSE stream, which will
+            # send the latest status from the database. This avoids a separate
+            # code path on the client.
+            return JSONResponse(status_code=202, content={"message": "Video processing already in progress or complete.", "video_id": video_id})
 
         if doc.exists and request.force:
             print(f"Forcing reprocessing for video {video_id}. Deleting old data...")

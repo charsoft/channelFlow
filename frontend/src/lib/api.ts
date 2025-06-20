@@ -14,30 +14,6 @@ async function getHeaders() {
     return headers;
 }
 
-export async function checkVideo(
-    url: string
-): Promise<{ exists: boolean; video_id: string | null }> {
-    const res = await fetch('/api/ingest-url', {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify({ url, force: false })
-    });
-
-    if (res.status === 403) {
-        const err = await res.json();
-        const error: any = new Error(err.message || 'Authorization failed. Please connect your YouTube account.');
-        error.code = err.code;
-        throw error;
-    }
-
-    const json = await res.json();
-    if (res.ok && json.status === 'exists') {
-        return { exists: true, video_id: json.data.video_id };
-    }
-    
-    return { exists: false, video_id: null };
-}
-
 export async function sendIngest(
     url: string,
     force: boolean

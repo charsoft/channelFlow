@@ -13,6 +13,7 @@
   let isYouTubeConnected = false;
   let isRestartMode = false;
   let currentVideoId: string | null = null;
+  let hasHandledFirstStatus = false;
   $: currentVideoId = $videoStatus?.video_id ?? null;
 
    // 1) Check once on page load (if the user is already logged in)
@@ -54,6 +55,7 @@
   function handleNewIngestion(e: CustomEvent) {
     const videoId = e.detail.videoId;
     if (videoId) {
+      hasHandledFirstStatus = false; // Reset for new video
       listenForUpdates(videoId);
     }
   }
@@ -100,6 +102,14 @@
     });
   }
 
+  // This reactive block automatically enters "Restart Mode"
+  // if the loaded video is already past the 'ingesting' stage.
+  $: if ($videoStatus?.status && !hasHandledFirstStatus) {
+    if ($videoStatus.status !== 'ingesting') {
+        isRestartMode = true;
+    }
+    hasHandledFirstStatus = true;
+  }
 
    const agents = [
     'Ingestion',
@@ -117,26 +127,30 @@
 
     'transcribing':      { agent: 'Transcription', state: 'active'    },
     'transcribed':       { agent: 'Transcription', state: 'completed' },
-    'transcription_failed': { agent: 'Transcription', state: 'failed' },
+    'transcribing_failed': { agent: 'Transcription', state: 'failed' },
     'auth_failed':       { agent: 'Transcription', state: 'failed'    },
 
     'analyzing':         { agent: 'Analysis',      state: 'active'    },
     'analyzed':          { agent: 'Analysis',      state: 'completed' },
-    'analysis_failed':   { agent: 'Analysis',      state: 'failed'    },
+    'analyzing_failed':   { agent: 'Analysis',      state: 'failed'    },
 
     'generating_copy':   { agent: 'Copywriting',   state: 'active'    },
     'copy_generated':    { agent: 'Copywriting',   state: 'completed' },
-    'copy_failed':       { agent: 'Copywriting',   state: 'failed'    },
+    'generating_copy_failed':       { agent: 'Copywriting',   state: 'failed'    },
 
     'generating_visuals':{ agent: 'Visuals',       state: 'active'    },
     'visuals_generated': { agent: 'Visuals',       state: 'completed' },
-    'visuals_failed':    { agent: 'Visuals',       state: 'failed'    },
+    'generating_visuals_failed':    { agent: 'Visuals',       state: 'failed'    },
 
     'publishing':        { agent: 'Publisher',     state: 'active'    },
     'published':         { agent: 'Publisher',     state: 'completed' },
     'publishing_failed': { agent: 'Publisher',     state: 'failed'    },
   };
 // 2) Derive `stages` reactively from your store + constants:
+  $: if ($videoStatus) {
+    console.log('Received video status from backend:', $videoStatus);
+  }
+
   $: stages = agents.map((agent) => {
     // default to "pending"
     let state: 'pending' | 'active' | 'completed' | 'failed' = 'pending';
