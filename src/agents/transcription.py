@@ -39,8 +39,6 @@ class TranscriptionAgent:
         self.bucket_name = bucket_name
         self.bucket = self.storage_client.bucket(bucket_name)
         self.ffmpeg_path = ffmpeg_path
-        self.cookies_file = os.getenv("YOUTUBE_COOKIES_FILE_PATH")
-        self.cookies_browser = os.getenv("YOUTUBE_COOKIES_BROWSER")
         event_bus.subscribe(NewVideoDetected, self.handle_new_video)
 
     async def update_video_status(self, video_id: str, status: str, data: dict = None):
@@ -153,10 +151,6 @@ class TranscriptionAgent:
             proxy = os.getenv("PROXY_URL")
             if proxy:
                 ydl_opts['proxy'] = proxy
-            if self.cookies_browser:
-                ydl_opts['cookiesfrombrowser'] = (self.cookies_browser.lower(),)
-            elif self.cookies_file and os.path.exists(self.cookies_file):
-                ydl_opts['cookiefile'] = self.cookies_file
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 error_code = await asyncio.to_thread(ydl.download, [event.video_url])

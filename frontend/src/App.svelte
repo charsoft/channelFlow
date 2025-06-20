@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Router, { push } from 'svelte-spa-router';
+  import Router, { push, location } from 'svelte-spa-router';
   import AuthButton from './components/AuthButton.svelte';
   import logoUrl from './assets/channel-flow-logo.png';
   import Home from './routes/Home.svelte';
@@ -15,7 +15,19 @@
 
 </script>
 
-<div class="main-container">
+<svelte:head>
+  {#if $location === '/dashboard'}
+    <style>
+      body {
+        display: block;
+        justify-content: initial;
+        align-items: initial;
+      }
+    </style>
+  {/if}
+</svelte:head>
+
+<div class="main-container" class:full-width={$location === '/dashboard'}>
   <!-- Header navigation -->
   <div class="header-nav">
     <div class="header-left">
@@ -49,5 +61,10 @@
   }
   main {
     padding: 1rem;
+  }
+  
+  :global(.main-container.full-width) {
+    max-width: none;
+    padding: 0;
   }
 </style>

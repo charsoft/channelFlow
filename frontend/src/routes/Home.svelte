@@ -128,19 +128,23 @@
     'transcribing':      { agent: 'Transcription', state: 'active'    },
     'transcribed':       { agent: 'Transcription', state: 'completed' },
     'transcribing_failed': { agent: 'Transcription', state: 'failed' },
+    'transcription_failed': { agent: 'Transcription', state: 'failed' },
     'auth_failed':       { agent: 'Transcription', state: 'failed'    },
 
     'analyzing':         { agent: 'Analysis',      state: 'active'    },
     'analyzed':          { agent: 'Analysis',      state: 'completed' },
     'analyzing_failed':   { agent: 'Analysis',      state: 'failed'    },
+    'analysis_failed':   { agent: 'Analysis',      state: 'failed'    },
 
     'generating_copy':   { agent: 'Copywriting',   state: 'active'    },
     'copy_generated':    { agent: 'Copywriting',   state: 'completed' },
-    'generating_copy_failed':       { agent: 'Copywriting',   state: 'failed'    },
+    'generating_copy_failed': { agent: 'Copywriting',   state: 'failed'    },
+    'copy_failed':       { agent: 'Copywriting',   state: 'failed'    },
 
     'generating_visuals':{ agent: 'Visuals',       state: 'active'    },
     'visuals_generated': { agent: 'Visuals',       state: 'completed' },
-    'generating_visuals_failed':    { agent: 'Visuals',       state: 'failed'    },
+    'generating_visuals_failed': { agent: 'Visuals',       state: 'failed'    },
+    'visuals_failed':    { agent: 'Visuals',       state: 'failed'    },
 
     'publishing':        { agent: 'Publisher',     state: 'active'    },
     'published':         { agent: 'Publisher',     state: 'completed' },
@@ -253,9 +257,9 @@
   }
   .ingestion-controls {
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
-    /* margin-bottom: 1rem; */
     width: 100%;
   }
 
