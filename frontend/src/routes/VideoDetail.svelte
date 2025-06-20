@@ -33,6 +33,12 @@
     loadVideoDetails();
   });
 
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && isImageModalVisible) {
+      isImageModalVisible = false;
+    }
+  }
+
   // --- Data Loading ---
   async function loadVideoDetails() {
     console.log(`[VideoDetail] loadVideoDetails called for video ID: ${params.id}`);
@@ -219,6 +225,8 @@
   }
 </script>
 
+<svelte:window on:keydown={handleKeydown}/>
+
 {#if isLoading}
   <div class="loader"></div>
 {:else if errorMessage}
@@ -288,9 +296,9 @@
                     {#each [...(videoData.image_urls || []), ...(videoData.on_demand_thumbnails || [])] as thumb}
                         {@const imageUrl = typeof thumb === 'string' ? thumb : thumb.image_url}
                         <div class="thumbnail-item">
-                            <div class="thumbnail-image-wrapper" on:click={() => showImageModal(imageUrl)}>
+                            <button type="button" class="thumbnail-image-wrapper" on:click={() => showImageModal(imageUrl)}>
                                 <img src={imageUrl} alt="Generated visual">
-                            </div>
+                            </button>
                             <div class="thumbnail-footer">
                                 <button class="button-secondary preview-post-btn" on:click|stopPropagation={() => showPostPreview(imageUrl)}>
                                     Preview Post
@@ -380,9 +388,9 @@
 
 <!-- Image Modal -->
 {#if isImageModalVisible}
-<div class="modal-overlay" on:click={() => isImageModalVisible = false}>
-    <span class="modal-close-button" on:click={() => isImageModalVisible = false}>&times;</span>
-    <img class="modal-content-image" src={modalImageUrl} alt="Full size generated visual" on:click|stopPropagation>
+<div class="modal-overlay" role="dialog" aria-modal="true" on:click={() => isImageModalVisible = false}>
+    <button type="button" class="modal-close-button" on:click={() => isImageModalVisible = false}>&times;</button>
+    <img class="modal-content-image" src={modalImageUrl} alt="Full size generated visual">
 </div>
 {/if}
 
@@ -519,8 +527,9 @@
 /* Assets Tab */
 .thumbnails-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    max-width: 900px; /* Constrains the grid from stretching too far */
 }
 .thumbnail-item {
     background-color: #fff;
@@ -532,12 +541,11 @@
 }
 .thumbnail-image-wrapper {
     cursor: pointer;
-    height: 250px;
+    aspect-ratio: 1 / 1; /* Modern CSS for 1:1 Aspect Ratio */
     background-color: #f0f2f5;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     overflow: hidden;
+    border: none;
+    padding: 0;
 }
 .thumbnail-image-wrapper img {
     width: 100%;
@@ -630,6 +638,7 @@
     cursor: pointer;
     background: none;
     border: none;
+    line-height: 1;
 }
 .modal-content-image {
     max-width: 90vw;
@@ -656,7 +665,10 @@
 
 /* Social Preview */
 :global(.social-preview-popup) {
-    max-width: 500px;
+    max-width: 700px;
+    min-width: 600px;
+   
+    min-height: 300px;
 }
 .social-preview-caption {
     text-align: left;
@@ -746,6 +758,46 @@
     margin-bottom: 1rem;
     display: flex;
     justify-content: flex-end;
+}
+
+/* --- Responsive Design --- */
+@media (max-width: 768px) {
+    .detail-container {
+        padding: 1rem;
+    }
+
+    .header-top-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .header-top-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .detail-header h1 {
+        font-size: 1.8rem;
+    }
+
+    .overview-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .thumbnails-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    }
+    
+    .new-prompts-list li {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    .prompt-controls {
+        justify-content: space-between;
+    }
 }
 </style>
 

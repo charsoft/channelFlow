@@ -308,6 +308,23 @@ async def get_videos():
         async for doc in docs:
             video_data = doc.to_dict()
             video_data["id"] = doc.id
+            
+            # Generate signed URLs for thumbnails to display on the dashboard
+            thumbnail_urls = []
+            image_gcs_uris = video_data.get("image_gcs_uris", [])
+            on_demand_thumbnails = video_data.get("on_demand_thumbnails", [])
+
+            # Get up to 4 URLs, prioritizing on-demand ones
+            for item in reversed(on_demand_thumbnails): # newest first
+                if len(thumbnail_urls) < 4 and "gcs_uri" in item:
+                    thumbnail_urls.append(_get_signed_url(item["gcs_uri"]))
+            
+            for uri in image_gcs_uris:
+                if len(thumbnail_urls) < 4:
+                    thumbnail_urls.append(_get_signed_url(uri))
+            
+            video_data["thumbnails"] = [url for url in thumbnail_urls if url]
+
             for key, value in video_data.items():
                 if isinstance(value, datetime):
                     video_data[key] = value.isoformat()

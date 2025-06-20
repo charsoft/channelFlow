@@ -14,7 +14,7 @@
     structured_data?: {
       summary?: string;
     };
-    generated_thumbnails?: { image_url: string }[];
+    thumbnails?: string[];
   }
 
   let videos: Video[] = [];
@@ -52,10 +52,6 @@
     if (status === 'published' || status === 'completed') return 'status-success'; // Added 'completed'
     if (status) return 'status-in-progress';
     return 'status-unknown';
-  }
-
-  function handleCardClick(videoId: string) {
-    push(`/video/${videoId}`);
   }
 
   function confirmAndReprocess(event: MouseEvent, videoId: string, videoUrl: string) {
@@ -130,7 +126,7 @@
         {:else}
             <div id="videos-grid" class="videos-grid">
                 {#each videos as video (video.video_id)}
-                    <div class="video-card" on:click={() => handleCardClick(video.video_id)}>
+                    <a href={`#/video/${video.video_id}`} class="video-card">
                         <div class="card-thumbnail">
                             <img src={`https://img.youtube.com/vi/${video.video_id}/hqdefault.jpg`} alt="Video thumbnail">
                             <span class="card-status {getStatusClass(video.status)}">
@@ -142,13 +138,16 @@
                             <p class="card-hook">{getHook(video)}</p>
                         </div>
                         <div class="card-footer">
-                            <div class="footer-images">
-                                {#if video.generated_thumbnails && video.generated_thumbnails.length > 0}
-                                    {#each video.generated_thumbnails.slice(0, 4) as thumb}
-                                        <img src={thumb.image_url} alt="Generated thumbnail" class="footer-thumbnail">
+                            <div class="footer-thumbnails">
+                                {#if video.thumbnails && video.thumbnails.length > 0}
+                                    {#each video.thumbnails as thumbUrl}
+                                        <div class="footer-thumbnail" style="background-image: url({thumbUrl})"></div>
                                     {/each}
                                 {:else}
-                                    <span class="no-images">No images generated</span>
+                                    <div class="footer-thumbnail-placeholder"></div>
+                                    <div class="footer-thumbnail-placeholder"></div>
+                                    <div class="footer-thumbnail-placeholder"></div>
+                                    <div class="footer-thumbnail-placeholder"></div>
                                 {/if}
                             </div>
                             <div class="footer-meta">
@@ -160,7 +159,7 @@
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </a>
                 {/each}
             </div>
         {/if}
@@ -217,6 +216,8 @@
         transition: transform 0.2s, box-shadow 0.2s;
         display: flex;
         flex-direction: column;
+        text-decoration: none; /* Reset link styles for the card */
+        color: inherit; /* Make card text use the default color */
     }
 
     .video-card:hover {
@@ -259,67 +260,68 @@
     .card-title {
         font-size: 1.1rem;
         font-weight: 600;
-        margin: 0 0 0.5rem 0;
+        margin: 0;
         color: #1e293b;
     }
 
     .card-hook {
         font-size: 0.9rem;
-        color: #475569;
+        color: #64748b;
+        margin-top: 0.5rem;
         line-height: 1.5;
     }
     
     .card-footer {
-        padding: 0 1rem 1rem 1rem;
-        border-top: 1px solid #e5e7eb;
+        padding: 0.75rem;
+        background-color: #f8fafc;
+        border-top: 1px solid #e2e8f0;
     }
 
-    .footer-images {
+    .footer-thumbnails {
         display: flex;
         gap: 0.5rem;
-        margin-top: 1rem;
-        min-height: 40px; /* Reserve space */
+        margin-bottom: 0.75rem;
     }
 
     .footer-thumbnail {
-        width: 40px;
-        height: 40px;
-        border-radius: 0.25rem;
-        object-fit: cover;
+        width: 25%;
+        padding-top: 25%;
+        background-size: cover;
+        background-position: center;
+        border-radius: 0.375rem;
     }
 
-    .no-images {
-        font-size: 0.8rem;
-        color: #94a3b8;
-        align-self: center;
+    .footer-thumbnail-placeholder {
+        width: 25%;
+        padding-top: 25%;
+        background-color: #e2e8f0;
+        border-radius: 0.375rem;
     }
-    
+
     .footer-meta {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-top: 1rem;
-    }
-    
-    .processed-date {
         font-size: 0.8rem;
         color: #64748b;
+    }
+
+    .processed-date {
+        /* styles for date */
     }
 
     .reprocess-button {
         background: none;
         border: 1px solid #d1d5db;
         color: #475569;
-        padding: 0.25rem 0.75rem;
-        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
         border-radius: 0.375rem;
         cursor: pointer;
-        transition: background-color 0.2s, color 0.2s;
+        transition: background-color 0.2s;
     }
-    
     .reprocess-button:hover {
         background-color: #f3f4f6;
-        border-color: #9ca3af;
     }
     
     .maintenance-section {
