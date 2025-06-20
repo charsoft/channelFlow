@@ -3,7 +3,7 @@
   import { createEventDispatcher } from 'svelte';
   import { videoStatus } from '../lib/stores';
 
-  export let retriggerable = false;
+  export let isRestartMode = false;
   const dispatch = createEventDispatcher();
 
   const agents = ['Ingestion', 'Transcription', 'Analysis', 'Copywriting', 'Visuals', 'Publisher'];
@@ -34,23 +34,27 @@
 
   $: {
     const newStates: Record<string, 'pending' | 'active' | 'completed' | 'failed'> = {};
-    let completedUpTo = -1;
-
     if ($videoStatus?.status) {
       const current = statusMap[$videoStatus.status];
       if (current) {
-        if (current.state === 'completed') {
-          completedUpTo = agents.indexOf(current.agent);
-        }
-        // Set state for all agents up to and including the one that just completed
-        for (let i = 0; i <= completedUpTo; i++) {
+        const currentIndex = agents.indexOf(current.agent);
+
+        // Mark all agents before the current one as completed.
+        for (let i = 0; i < currentIndex; i++) {
           newStates[agents[i]] = 'completed';
         }
-        // Set the current agent's specific state
+
+        // Set the current agent's specific state.
         newStates[current.agent] = current.state;
       }
     }
     agentStates = newStates;
+  }
+
+  function handleStepClick(agent: string) {
+    if (isRestartMode && agentStates[agent] === 'completed') {
+      dispatch('retrigger', { stage: agent });
+    }
   }
 </script>
 
@@ -58,24 +62,17 @@
   <h3 class="text-lg font-semibold mb-4 text-gray-700">Live Workflow</h3>
   <div class="workflow-container">
     {#each agents as agent, i}
-      <div class="workflow-step-container">
-        <div
-          class="workflow-step"
-          class:active={agentStates[agent] === 'active'}
-          class:success={agentStates[agent] === 'completed'}
-          class:failed={agentStates[agent] === 'failed'}
-        >
-          {agent}
-        </div>
-        {#if retriggerable && (agentStates[agent] === 'completed' || agentStates[agent] === 'failed')}
-          <button 
-            class="retrigger-button" 
-            on:click={() => dispatch('retrigger', { stage: agent })}
-          >
-            Re-run
-          </button>
-        {/if}
-      </div>
+      <button 
+        type="button"
+        class="workflow-step"
+        class:success={agentStates[agent] === 'completed'}
+        class:active={agentStates[agent] === 'active'}
+        class:failed={agentStates[agent] === 'failed'}
+        class:restart-active={isRestartMode && agentStates[agent] === 'completed'}
+        on:click={() => handleStepClick(agent)}
+      >
+        {agent}
+      </button>
       {#if i < agents.length - 1}
         <div 
           class="workflow-arrow"
@@ -99,6 +96,7 @@
     flex-wrap: wrap; /* Allows steps to wrap on smaller screens */
   }
   .workflow-step {
+    /* Base styles */
     padding: 0.5rem 1rem;
     border-radius: 0.375rem; /* rounded-md */
     font-weight: 500; /* font-medium */
@@ -106,6 +104,13 @@
     color: #374151; /* text-gray-700 */
     transition: all 0.3s ease;
     border: 1px solid #d1d5db; /* Default border */
+    
+    /* Button resets */
+    font-family: inherit;
+    font-size: 100%;
+    margin: 0;
+    text-align: center;
+    cursor: default; /* Not clickable by default */
   }
   .workflow-step.success {
     background-color: #dcfce7; /* bg-green-100 */
@@ -123,6 +128,10 @@
     background-color: #fee2e2; /* bg-red-100 */
     color: #991b1b; /* text-red-800 */
     border-color: #fca5a5; /* border-red-300 */
+  }
+  .workflow-step.restart-active {
+    cursor: pointer;
+    box-shadow: 0 0 0 3px #4f46e5; /* A strong indigo ring to indicate it's clickable */
   }
   .workflow-arrow {
     width: 0;

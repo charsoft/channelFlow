@@ -5,12 +5,14 @@
   import ConnectYouTubeButton from '../components/ConnectYouTubeButton.svelte';
   import { accessToken } from '../lib/auth';
   import { videoStatus } from '../lib/stores';
-  import { listenForUpdates, checkYouTubeConnection, disconnectYouTube } from '../lib/api';
+  import { listenForUpdates, checkYouTubeConnection, disconnectYouTube, retriggerStage } from '../lib/api';
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import Swal from 'sweetalert2';
 
   let isYouTubeConnected = false;
+  let isRestartMode = false;
+  let currentVideoId: string | null = null;
 
   onMount(async () => {
     if ($accessToken) {
@@ -24,6 +26,10 @@
     isYouTubeConnected = false;
   }
   
+  $: if ($videoStatus?.video_id) {
+    currentVideoId = $videoStatus.video_id;
+  }
+
   function handleNewIngestion(e: CustomEvent) {
     const videoId = e.detail.videoId;
     if (videoId) {
@@ -33,6 +39,43 @@
 
   function handleView(e: CustomEvent) {
     push(`/video/${e.detail.videoId}`);
+  }
+
+  async function handleRetrigger(event: { detail: { stage: string }}) {
+    const stage = event.detail.stage;
+    
+    Swal.fire({
+      title: 'Are you sure?',
+      text: `This will re-run the process from the '${stage}' stage.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, re-run it!'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        if (!currentVideoId) {
+          Swal.fire('Error!', 'No video is currently being processed.', 'error');
+          return;
+        }
+        try {
+          await retriggerStage(currentVideoId, stage);
+          Swal.fire(
+            'Restarted!',
+            `The process will now re-run from the ${stage} stage.`,
+            'success'
+          );
+        } catch (err: any) {
+          Swal.fire(
+            'Error!',
+            err.message || 'Failed to re-trigger the process.',
+            'error'
+          );
+        }
+      }
+    });
+    // Turn off restart mode after a selection is made
+    isRestartMode = false;
   }
 
   function onYouTubeConnected() {
@@ -79,13 +122,41 @@
 
   {#if $videoStatus}
     <div class="processing-section">
-      <Workflow />
+      <div class="workflow-controls">
+        <h3 class="text-lg font-semibold text-gray-700">Live Workflow</h3>
+        <button class="button-secondary" on:click={() => { isRestartMode = !isRestartMode; }}>
+          {#if isRestartMode}
+            Cancel
+          {:else}
+            Restart From Stage...
+          {/if}
+        </button>
+      </div>
+       {#if isRestartMode}
+        <p class="restart-prompt">Select a completed stage to restart from.</p>
+      {/if}
+      <Workflow bind:isRestartMode on:retrigger={handleRetrigger} />
       <StatusLog />
     </div>
   {/if}
 </div>
 
 <style>
+  .restart-prompt {
+    font-size: 0.9rem;
+    font-style: italic;
+    color: #4f46e5; /* indigo-600 */
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background-color: #eef2ff;
+    border-radius: 0.375rem;
+  }
+  .workflow-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
   .processing-section {
     margin-top: 2rem;
     border-top: 1px solid #e5e7eb; /* gray-200 */
