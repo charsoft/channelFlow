@@ -22,6 +22,10 @@
         display: block;
         justify-content: initial;
         align-items: initial;
+        height: auto;
+        width: 100%;
+        margin: 0;
+        padding: 70px;
       }
     </style>
   {/if}

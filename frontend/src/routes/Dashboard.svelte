@@ -117,17 +117,6 @@
 </script>
 
 <div class="management-container">
-    <header class="management-header">
-        <div class="header-left">
-            <a href="/" class="logo-link">
-                <img src="/channel-flow-logo.png" alt="ChannelFlow Logo" class="logo-icon">
-            </a>
-        </div>
-        <nav class="nav-links">
-            <a href="/" class="button-link">Process New Video</a>
-        </nav>
-    </header>
-    
     <div class="content-body">
         <h1>Content Dashboard</h1>
         <p>Review and manage all processed video content.</p>
@@ -195,41 +184,9 @@
 
     .management-container {
         width: 100%; /* Use full available width */
-        max-width: 1400px; /* Add a max-width for very large screens */
-        margin: 0 auto;
+        margin: 0;
         padding: 2rem;
         font-family: 'Inter', sans-serif;
-    }
-
-    .management-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 2rem;
-    }
-
-    .logo-link {
-        display: flex;
-        align-items: center;
-        text-decoration: none;
-    }
-
-    .logo-icon {
-        height: 50px;
-    }
-
-    .button-link {
-        background-color: #4F46E5; /* Your app's primary purple */
-        color: white;
-        padding: 0.75rem 1.5rem;
-        border-radius: 0.5rem;
-        text-decoration: none;
-        font-weight: 600;
-        transition: background-color 0.3s;
-    }
-
-    .button-link:hover {
-        background-color: #4338CA;
     }
 
     .content-body h1 {
