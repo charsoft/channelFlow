@@ -11,6 +11,7 @@
             <span class="logo-text">ChannelFlow</span>
         </a>
         <nav class="main-nav">
+            <a href="/" use:link class="nav-link button-outline">Home</a>
             <a href="/dashboard" use:link class="nav-link button-outline">Dashboard</a>
             <a href="/system-flow" use:link class="nav-link button-outline">System Flow</a>
             <a href="/maintenance" use:link class="nav-link button-outline">Maintenance</a>

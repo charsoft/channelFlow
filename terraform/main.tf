@@ -55,6 +55,23 @@ resource "google_project_service" "generativelanguage" {
 resource "google_project_service" "firestore" {
   project = var.project_id
   service = "firestore.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+resource "google_firestore_index" "videos_by_user_created" {
+  project     = var.project_id
+  collection  = "videos"
+  
+  fields {
+    field_path = "user_id"
+    order      = "ASCENDING"
+  }
+
+  fields {
+    field_path = "created_at"
+    order      = "DESCENDING"
+  }
 }
 
 # --- API Keys ---
@@ -103,4 +120,9 @@ resource "google_storage_bucket_iam_member" "public_access" {
   bucket = google_storage_bucket.public_bucket.name
   role   = "roles/storage.objectViewer"
   member = "allUsers"
+}
+
+# --- Service Accounts ---
+resource "google_service_account" "cloud_run_sa" {
+  // ... existing code ...
 }

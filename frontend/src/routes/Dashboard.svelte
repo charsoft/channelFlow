@@ -4,6 +4,7 @@
   import { push } from 'svelte-spa-router';
   import Swal from 'sweetalert2';
   import { accessToken } from '../lib/auth';
+  import { getHeaders } from '../lib/api';
 
   interface Video {
     video_id: string;
@@ -22,26 +23,55 @@
   let isLoading = true;
   let errorMessage = '';
   let activeMenu = ''; // Holds the video_id of the active menu
+  let offset = 0;
+  const limit = 5;
+  let canLoadMore = true;
 
-  onMount(async () => {
-    if (!$accessToken) {
-      push('/'); // Redirect to home if not logged in
-      return;
+  async function fetchVideos(loadMore = false) {
+    if (!loadMore) {
+      isLoading = true;
+      videos = [];
+      offset = 0;
     }
 
     try {
-      const response = await fetch('/api/videos');
+      const response = await fetch(`/api/videos?limit=${limit}&offset=${offset}`, {
+        headers: await getHeaders()
+      });
       if (!response.ok) {
+        if (response.status === 401) {
+          errorMessage = 'Your session has expired. Please log in again.';
+          // Optionally, redirect to login
+          push('/');
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      videos = data.videos || [];
+      const newVideos = data.videos || [];
+      
+      videos = loadMore ? [...videos, ...newVideos] : newVideos;
+      
+      if (newVideos.length < limit) {
+        canLoadMore = false;
+      }
+      
+      offset += newVideos.length;
+
     } catch (error: any) {
       errorMessage = 'Could not load video data. Please try again later.';
       console.error('Failed to load videos:', error);
     } finally {
       isLoading = false;
     }
+  }
+
+  onMount(async () => {
+    if (!$accessToken) {
+      push('/'); // Redirect to home if not logged in
+      return;
+    }
+    fetchVideos();
   });
 
   function getHook(video: Video): string {
@@ -234,6 +264,16 @@
                 </a>
             {/each}
         </div>
+
+        {#if canLoadMore && !isLoading}
+        <div class="load-more-container">
+            <button on:click={() => fetchVideos(true)} class="button-primary">Load More</button>
+        </div>
+        {/if}
+
+        {#if isLoading && videos.length > 0}
+            <p>Loading more videos...</p>
+        {/if}
     {/if}
 </div>
 
@@ -419,5 +459,10 @@
     }
     .menu-item.reprocess:hover {
         background-color: #fee2e2;
+    }
+
+    .load-more-container {
+        text-align: center;
+        margin-top: 2rem;
     }
 </style> 

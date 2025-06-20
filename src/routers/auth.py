@@ -80,7 +80,9 @@ async def google_login(request: GoogleLoginRequest):
             })
 
         # Create our own internal access token
-        access_token = create_access_token(data={"sub": user_id})
+        access_token = create_access_token(
+            data={"sub": user_id, "name": user_name}
+        )
 
         return {"access_token": access_token, "token_type": "bearer"}
 

@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request, HTTPException, status
+from fastapi import APIRouter, Depends, Request, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
@@ -59,6 +59,11 @@ async def ingest_url(request: IngestUrlRequest, current_user: dict = Depends(get
     """
     try:
         user_id = current_user.get("uid")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not identify user from token.",
+            )
         print(f"Request received from authenticated user: {user_id}")
 
         # --- Get User's YouTube Credentials ---
@@ -299,25 +304,49 @@ async def re_trigger(request: RetriggerRequest, current_user: dict = Depends(get
         return JSONResponse(status_code=400, content={"message": f"Invalid stage '{request.stage}' provided."})
 
 @router.get("/api/videos")
-async def get_videos(current_user: dict = Depends(get_current_user)):
+async def get_videos(
+    current_user: dict = Depends(get_current_user),
+    limit: int = 5,
+    offset: int = 0
+):
     """
-    Retrieves all videos processed by the currently authenticated user.
+    Retrieves videos processed by the currently authenticated user, with pagination.
     """
     user_id = current_user.get("uid")
-    videos_ref = db.collection("videos").where("user_id", "==", user_id).order_by("created_at", direction=firestore.Query.DESC)
-    docs = videos_ref.stream()
+    
+    # Base query
+    query = db.collection("videos").where("user_id", "==", user_id)
+    
+    # Order by 'created_at' if available, otherwise 'created_at'
+    # Firestore requires the first orderBy field to be in the inequality filter if one exists
+    # Since we don't have an inequality, we can order by any field.
+    # However, to gracefully handle missing fields, it's often better to ensure 
+    # the field exists or query separately. For this use case, we assume most will have it.
+    # A more robust solution might involve a separate 'search' index or default values.
+    query = query.order_by("created_at", direction=firestore.Query.DESCENDING)
+    
+    # Apply pagination
+    query = query.limit(limit).offset(offset)
+    
+    docs = query.stream()
 
     videos = []
-    for doc in docs:
+    async for doc in docs:
         video_data = doc.to_dict()
         video_data["video_id"] = doc.id
         
         if created_at := video_data.get("created_at"):
             if isinstance(created_at, datetime):
-                 video_data["received_at"] = created_at.isoformat()
+                 video_data["created_at"] = created_at.isoformat()
             else:
                 # Handle potential timestamp strings if data format is inconsistent
-                video_data["received_at"] = str(created_at)
+                video_data["created_at"] = str(created_at)
+        
+        if processed_at := video_data.get("processed_at"):
+            if isinstance(processed_at, datetime):
+                 video_data["processed_at"] = processed_at.isoformat()
+            else:
+                video_data["processed_at"] = str(processed_at)
 
         # Generate signed URLs for thumbnails if they exist
         if image_urls := video_data.get("image_urls"):

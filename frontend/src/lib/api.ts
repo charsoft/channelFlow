@@ -3,7 +3,7 @@ import { get } from 'svelte/store';
 import { accessToken } from './auth';
 import { videoStatus, statusHistory, resetStores } from './stores';
 
-async function getHeaders() {
+export async function getHeaders() {
     const token = get(accessToken);
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
