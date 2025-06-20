@@ -20,6 +20,29 @@ from .auth import get_current_user
 
 router = APIRouter()
 
+# This is a simplification. You'd likely have a shared storage client.
+storage_client = storage.Client()
+bucket_name = os.environ.get("GCS_BUCKET_NAME")
+
+def _get_signed_url(gcs_uri: str) -> str:
+    """Converts a GCS URI to a signed URL."""
+    if not gcs_uri or not bucket_name:
+        return None
+    try:
+        blob_name = gcs_uri.replace(f"gs://{bucket_name}/", "")
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=3600,  # 1 hour
+            method="GET",
+        )
+        return signed_url
+    except Exception as e:
+        print(f"Error generating signed URL for {gcs_uri}: {e}")
+        return None
+
 class IngestUrlRequest(BaseModel):
     url: str
     force: bool = False
@@ -276,41 +299,63 @@ async def re_trigger(request: RetriggerRequest):
         return JSONResponse(status_code=400, content={"message": f"Invalid stage '{request.stage}' provided."})
 
 @router.get("/api/videos")
-async def get_all_videos():
-    videos = []
+async def get_videos():
     try:
-        videos_ref = db.collection("videos").stream()
-        async for video in videos_ref:
-            video_data = video.to_dict()
+        # Fetch all documents without server-side sorting to ensure none are missed
+        videos_ref = db.collection("videos")
+        docs = videos_ref.stream()
+        videos = []
+        async for doc in docs:
+            video_data = doc.to_dict()
+            video_data["id"] = doc.id
             for key, value in video_data.items():
                 if isinstance(value, datetime):
                     video_data[key] = value.isoformat()
             videos.append(video_data)
         
-        videos.sort(key=lambda v: v.get('updated_at', '1970-01-01T00:00:00'), reverse=True)
-        
-        return JSONResponse(content={"videos": videos})
+        # Sort in the application to handle missing 'received_at' fields gracefully
+        videos.sort(key=lambda v: v.get('received_at', '1970-01-01T00:00:00Z'), reverse=True)
+
+        return {"videos": videos}
     except Exception as e:
         print(f"Error fetching all videos: {e}")
-        return JSONResponse(status_code=500, content={"message": "Failed to fetch videos."})
+        raise HTTPException(status_code=500, detail="Failed to fetch videos.")
 
 @router.get("/api/video/{video_id}")
 async def get_video(video_id: str):
     try:
-        video_doc_ref = db.collection("videos").document(video_id)
-        doc = await video_doc_ref.get()
-        if not doc.exists:
-            return JSONResponse(status_code=404, content={"message": "Video not found"})
-        
-        video_data = doc.to_dict()
+        doc_ref = db.collection("videos").document(video_id)
+        video_doc = await doc_ref.get()
+        if not video_doc.exists:
+            raise HTTPException(status_code=404, detail="Video not found")
+    
+        video_data = video_doc.to_dict()
+
+        # Convert image_gcs_uris to signed URLs
+        if "image_gcs_uris" in video_data and video_data["image_gcs_uris"]:
+            video_data["image_urls"] = [_get_signed_url(uri) for uri in video_data["image_gcs_uris"]]
+
+        # Convert on_demand_thumbnails gcs_uris to signed URLs and datetimes
+        if "on_demand_thumbnails" in video_data and video_data["on_demand_thumbnails"]:
+            for item in video_data["on_demand_thumbnails"]:
+                if "gcs_uri" in item:
+                    item["image_url"] = _get_signed_url(item["gcs_uri"])
+                if "created_at" in item and isinstance(item["created_at"], datetime):
+                    item["created_at"] = item["created_at"].isoformat()
+
+        # Convert top-level datetimes
         for key, value in video_data.items():
             if isinstance(value, datetime):
                 video_data[key] = value.isoformat()
-        
-        return JSONResponse(content={"video": video_data})
+
+        return {"video": video_data}
     except Exception as e:
         print(f"Error fetching video {video_id}: {e}")
-        return JSONResponse(status_code=500, content={"message": "Failed to fetch video."})
+        raise HTTPException(status_code=500, detail="Failed to fetch video.")
+
+@router.delete("/api/videos/{video_id}")
+async def delete_video(video_id: str):
+    pass
 
 # This is a duplicate and insecure endpoint. Removing it.
 # @router.post("/api/ingest")

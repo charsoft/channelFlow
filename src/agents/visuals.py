@@ -1,3 +1,4 @@
+import os
 import asyncio
 import google.generativeai as genai
 import vertexai
@@ -16,18 +17,25 @@ class VisualsAgent:
     Purpose: To create compelling visuals that complement the message using Imagen 2.
     """
 
-    def __init__(self, project_id: str, location: str, bucket_name: str, api_key: str, model_name: str, gemini_model_name: str):
+    def __init__(self, project_id: str, location: str, bucket_name: str, api_key: str, model_name: str):
         genai.configure(api_key=api_key)
         vertexai.init(project=project_id, location=location)
+        gemini_model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-pro-latest")
         self.model = genai.GenerativeModel(model_name=gemini_model_name)
         self.image_model = ImageGenerationModel.from_pretrained(model_name)
         self.storage_client = storage.Client()
         self.bucket_name = bucket_name
         event_bus.subscribe(CopyReady, self.handle_copy_ready)
 
-    async def _generate_and_upload_image(self, prompt: str, video_id: str, index: int, diversity_options: dict = None) -> str:
-        """Generates a single image, uploads it, and returns the public URL."""
+    async def _generate_and_upload_image(self, prompt: str, video_id: str, index: int, diversity_options: dict = None, model_name: str = None) -> str:
+        """Generates a single image, uploads it, and returns the GCS URI."""
         
+        # Determine which image model to use
+        image_model_to_use = self.image_model
+        if model_name:
+            print(f"   Using on-demand model: {model_name}")
+            image_model_to_use = ImageGenerationModel.from_pretrained(model_name)
+
         # Modify prompt based on diversity options
         if diversity_options:
             modifiers = []
@@ -44,7 +52,7 @@ class VisualsAgent:
 
         print(f"     - Generating image {index}: {prompt[:80]}...")
         response = await asyncio.to_thread(
-            self.image_model.generate_images,
+            image_model_to_use.generate_images,
             prompt=prompt,
             number_of_images=1
         )
@@ -58,23 +66,24 @@ class VisualsAgent:
         
         # Upload to GCS
         image_filename = f"{video_id}_visual_{index}_{uuid.uuid4()}.png"
-        blob = self.storage_client.bucket(self.bucket_name).blob(f"images/{image_filename}")
+        blob_path = f"images/{image_filename}"
+        blob = self.storage_client.bucket(self.bucket_name).blob(blob_path)
         
         await asyncio.to_thread(blob.upload_from_string, image_bytes, 'image/png')
-        await asyncio.to_thread(blob.make_public)
         
-        print(f"       Uploaded to {blob.public_url}")
-        return blob.public_url
+        gcs_uri = f"gs://{self.bucket_name}/{blob_path}"
+        print(f"       Uploaded to {gcs_uri}")
+        return gcs_uri
 
-    async def generate_single_image_from_prompt(self, video_id: str, prompt: str) -> dict:
+    async def generate_single_image_from_prompt(self, video_id: str, prompt: str, model_name: str = None) -> dict:
         """
-        Generates a single image and returns a dict with the prompt and URL.
+        Generates a single image and returns a dict with the prompt and the GCS URI.
         This is used for on-demand generation from the frontend.
         """
         index = f"ondemand_{uuid.uuid4()}"
-        image_url = await self._generate_and_upload_image(prompt, video_id, index)
-        if image_url:
-            return {"prompt": prompt, "image_url": image_url}
+        image_gcs_uri = await self._generate_and_upload_image(prompt, video_id, index, model_name=model_name)
+        if image_gcs_uri:
+            return {"prompt": prompt, "gcs_uri": image_gcs_uri}
         return None
 
     async def _generate_quote_image(self, quote: str, video_id: str, index: int, key_themes: list) -> dict:
@@ -88,10 +97,10 @@ class VisualsAgent:
         )
         
         print(f"   - Generating background for quote {index}...")
-        image_url = await self._generate_and_upload_image(prompt, video_id, f"quote_{index}")
+        image_gcs_uri = await self._generate_and_upload_image(prompt, video_id, f"quote_{index}")
         
-        if image_url:
-            return {"quote": quote, "image_url": image_url}
+        if image_gcs_uri:
+            return {"quote": quote, "gcs_uri": image_gcs_uri}
         return None
 
     async def _generate_image_prompts(self, structured_data: dict, substack_gcs_uri: str) -> list[str]:
@@ -233,9 +242,9 @@ class VisualsAgent:
             self._generate_and_upload_image(prompt, video_id, i + 1)
             for i, prompt in enumerate(prompts)
         ]
-        image_urls_with_none = await asyncio.gather(*tasks)
+        gcs_uris_with_none = await asyncio.gather(*tasks)
         # Filter out any None results from failed generations
-        return [url for url in image_urls_with_none if url is not None]
+        return [uri for uri in gcs_uris_with_none if uri]
 
     def _build_gemini_prompt(self, video_title: str, marketing_copy: dict) -> str:
         """Builds the prompt for Gemini to generate Imagen prompts."""
@@ -265,7 +274,7 @@ class VisualsAgent:
         {{
             "image_prompts": [
                 "A photorealistic image of a single lightbulb glowing brightly in a dark, empty room, casting long shadows.",
-                "An abstract painting representing the concept of 'flow state', with vibrant colors swirling and blending together seamlessly.",
+                "An abstract painting representing the concept of 'flow state', with abstract shapes and colors.",
                 "A close-up shot of a person's eye, with complex code and algorithms reflected in their iris."
             ]
         }}
