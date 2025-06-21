@@ -299,10 +299,14 @@ async def re_trigger(request: RetriggerRequest):
         return JSONResponse(status_code=400, content={"message": f"Invalid stage '{request.stage}' provided."})
 
 @router.get("/api/videos")
-async def get_videos():
+async def get_videos(current_user: dict = Depends(get_current_user)):
     try:
-        # Fetch all documents without server-side sorting to ensure none are missed
-        videos_ref = db.collection("videos")
+        user_id = current_user.get("uid")
+        if not user_id:
+            raise HTTPException(status_code=403, detail="Could not verify user.")
+
+        # Fetch documents for the specific user
+        videos_ref = db.collection("videos").where("user_id", "==", user_id)
         docs = videos_ref.stream()
         videos = []
         async for doc in docs:
@@ -330,12 +334,12 @@ async def get_videos():
                     video_data[key] = value.isoformat()
             videos.append(video_data)
         
-        # Sort in the application to handle missing 'received_at' fields gracefully
-        videos.sort(key=lambda v: v.get('received_at', '1970-01-01T00:00:00Z'), reverse=True)
+        # Sort in the application to handle missing 'created_at' fields gracefully
+        videos.sort(key=lambda v: v.get('created_at', '1970-01-01T00:00:00Z'), reverse=True)
 
         return {"videos": videos}
     except Exception as e:
-        print(f"Error fetching all videos: {e}")
+        print(f"Error fetching user videos: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch videos.")
 
 @router.get("/api/video/{video_id}")

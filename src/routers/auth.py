@@ -136,7 +136,12 @@ async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(g
                     "token_uri": "https://oauth2.googleapis.com/token",
                 }
             },
-            scopes=['https://www.googleapis.com/auth/youtube.readonly'],
+            scopes=[
+                'https://www.googleapis.com/auth/youtube.readonly',
+                'openid',
+                'https://www.googleapis.com/auth/userinfo.email',
+                'https://www.googleapis.com/auth/userinfo.profile'
+            ],
             redirect_uri='postmessage'
         )
 

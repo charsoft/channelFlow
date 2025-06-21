@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import Swal from 'sweetalert2';
+  import { accessToken } from '../lib/auth';
 
   interface Video {
     video_id: string;
@@ -24,7 +25,20 @@
 
   onMount(async () => {
     try {
-      const response = await fetch('/api/videos');
+      const token = $accessToken;
+      if (!token) {
+        // This can happen if the user's session expires or they log out.
+        // We'll just show an empty dashboard.
+        videos = [];
+        isLoading = false;
+        return;
+      }
+
+      const response = await fetch('/api/videos', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
