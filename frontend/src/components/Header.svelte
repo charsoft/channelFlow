@@ -2,6 +2,12 @@
     import { link } from 'svelte-spa-router';
     import logoUrl from '../assets/channel-flow-logo.png';
     import AuthButton from './AuthButton.svelte';
+
+    let isMenuOpen = false;
+
+    function toggleMenu() {
+        isMenuOpen = !isMenuOpen;
+    }
 </script>
 
 <header class="app-header">
@@ -10,7 +16,12 @@
             <img src={logoUrl} alt="ChannelFlow Logo" class="logo-icon">
             <span class="logo-text">ChannelFlow</span>
         </a>
-        <nav class="main-nav">
+        <button class="hamburger" on:click={toggleMenu} aria-label="Open menu">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+        <nav class="main-nav" class:is-open={isMenuOpen}>
             <a href="/" use:link class="nav-link button-outline">Home</a>
             <a href="/dashboard" use:link class="nav-link button-outline">Dashboard</a>
             <a href="/system-flow" use:link class="nav-link button-outline">System Flow</a>
@@ -39,8 +50,9 @@
         justify-content: space-between;
         align-items: center;
         height: 64px;
-        max-width: 1400px;
-        margin: 0 auto;
+        gap: 2rem;
+        width: 100%;
+        padding: 0 2rem;
     }
     
     .logo-link {
@@ -62,6 +74,8 @@
 
     .main-nav {
         display: flex;
+        justify-content: space-around;
+        flex-grow: 1;
         gap: 1.5rem;
     }
 
@@ -82,31 +96,49 @@
         /* This will push the auth button to the far right */
     }
 
+    .hamburger {
+        display: none;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        color: #1e293b;
+    }
+
     @media (max-width: 820px) {
         .header-content {
-            flex-direction: column;
-            height: auto;
-            padding: 1rem 0;
-            position: relative;
+            justify-content: space-between;
+            flex-wrap: wrap;
         }
 
         .main-nav {
-            order: 3; /* Render nav after logo and auth button */
+            display: none;
             flex-direction: column;
-            align-items: center;
             width: 100%;
-            margin-top: 1rem;
+            order: 3;
             gap: 0.5rem;
+            margin-top: 1rem;
+            background-color: white;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .main-nav.is-open {
+            display: flex;
+        }
+
+        .hamburger {
+            display: block;
         }
 
         .header-right {
-           position: absolute;
-           top: 1rem;
-           right: 0;
+           position: static;
+           order: 2;
         }
 
         .logo-text {
-            display: none; /* Hide text on small screens to save space */
+            /* Optionally hide on very small screens if needed, but let's keep it for now */
         }
     }
 </style> 

@@ -41,12 +41,13 @@
 
 <form on:submit|preventDefault={submit} class="ingest-form">
   <input
+    class="url-input"
     type="text"
     bind:value={videoUrl}
-    placeholder="Enter YouTube Video URL"
+    placeholder="e.g., https://www.youtube.com/watch?v=your_video_id"
     disabled={isLoading}
   />
-  <button type="submit" class="button-primary" disabled={isLoading || !videoUrl.trim()}>
+  <button type="submit" class="button-primary ingest-button" disabled={isLoading || !videoUrl.trim()}>
     {#if isLoading}
       <div class="spinner" />
       <span>Ingesting...</span>
@@ -61,19 +62,39 @@
     display: flex;
     gap: 0.5rem; /* 8px */
     width: 100%;
+    align-items: center;
   }
 
   .url-input {
-    width: 100%;
-    min-width: 0; /* Important for flexbox to allow shrinking */
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    margin-bottom: 0.5rem;
-    
-
+    flex-grow: 1;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    font-size: 1rem;
+    color: #374151;
+  }
+  .url-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
   }
 
   .ingest-button {
-    flex-shrink: 1; /* Prevent the button from shrinking */
+    flex-shrink: 0; /* Prevent the button from shrinking */
+  }
+
+  .spinner {
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-right: 8px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 </style>
