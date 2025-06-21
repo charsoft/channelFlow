@@ -350,4 +350,16 @@
     line-height: 1.5;
     color: var(--text-color);
   }
+
+  /* Responsive stacking for smaller screens */
+  @media (max-width: 992px) {
+    .home-container {
+      flex-direction: column;
+    }
+
+    .sidebar-column {
+      position: static; /* Resets the sticky positioning */
+      width: 100%;
+    }
+  }
 </style>

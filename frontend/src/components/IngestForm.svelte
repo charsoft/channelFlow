@@ -6,19 +6,19 @@
   import { sendIngest } from '../lib/api';
 
   const dispatch = createEventDispatcher();
-  let youtubeUrl = '';
-  let busy = false;
+  let videoUrl = '';
+  let isLoading = false;
 
   async function submit() {
-    busy = true;
+    isLoading = true;
     try {
       // 1) Basic guards
-      if (!youtubeUrl.trim()) throw new Error('Please enter a YouTube URL.');
+      if (!videoUrl.trim()) throw new Error('Please enter a YouTube URL.');
       const token = get(accessToken);
       if (!token) throw new Error('You must be signed in to submit a video.');
 
       // No longer need to check if the video exists. The backend handles it.
-      const newId = await sendIngest(youtubeUrl, false); // force=false
+      const newId = await sendIngest(videoUrl, false); // force=false
       dispatch('new-ingestion', { videoId: newId });
     }
     catch (err: any) {
@@ -34,22 +34,25 @@
       }
     }
     finally {
-      busy = false;
+      isLoading = false;
     }
   }
 </script>
 
 <form on:submit|preventDefault={submit} class="ingest-form">
   <input
-    type="url"
-    bind:value={youtubeUrl}
-    placeholder="https://www.youtube.com/watch?v=..."
-    class="url-input"
-    disabled={busy}
-    required
+    type="text"
+    bind:value={videoUrl}
+    placeholder="Enter YouTube Video URL"
+    disabled={isLoading}
   />
-  <button type="submit" disabled={busy} class="button-primary ingest-button">
-    {#if busy}Processing…{:else}Go{/if}
+  <button type="submit" class="button-primary" disabled={isLoading || !videoUrl.trim()}>
+    {#if isLoading}
+      <div class="spinner" />
+      <span>Ingesting...</span>
+    {:else}
+      Ingest Video
+    {/if}
   </button>
 </form>
 

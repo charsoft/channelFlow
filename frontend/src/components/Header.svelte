@@ -31,6 +31,7 @@
         top: 0;
         z-index: 50;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        width: 100%;
     }
 
     .header-content {
@@ -79,5 +80,33 @@
 
     .header-right {
         /* This will push the auth button to the far right */
+    }
+
+    @media (max-width: 820px) {
+        .header-content {
+            flex-direction: column;
+            height: auto;
+            padding: 1rem 0;
+            position: relative;
+        }
+
+        .main-nav {
+            order: 3; /* Render nav after logo and auth button */
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            margin-top: 1rem;
+            gap: 0.5rem;
+        }
+
+        .header-right {
+           position: absolute;
+           top: 1rem;
+           right: 0;
+        }
+
+        .logo-text {
+            display: none; /* Hide text on small screens to save space */
+        }
     }
 </style> 

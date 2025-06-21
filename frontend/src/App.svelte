@@ -20,13 +20,35 @@
   };
 </script>
 
-<Header />
+<div class="app-container">
+  <Header />
 
-<main>
-  <Router {routes}/>
-</main>
+  <main class="main-content">
+    <Router {routes}/>
+  </main>
+</div>
 
 <style>
+  .app-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .main-content {
+    flex-grow: 1;
+    width: 100%;
+    max-width: 1900px; /* Or your preferred max width */
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  :global(header) {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  
   :global(:root) {
     --primary-color: #4F46E5;
     --primary-gradient: linear-gradient(90deg, #4F46E5, #818CF8);
@@ -54,7 +76,7 @@
     background-color: var(--background-color);
   }
 
-  :global(button), :global(.button-primary) {
+  :global(.button-primary) {
     background: var(--primary-gradient);
     color: white;
     padding: 0.6rem 1.2rem;
@@ -68,7 +90,7 @@
     display: inline-block;
   }
 
-  :global(button:hover), :global(.button-primary:hover) {
+  :global(.button-primary:hover) {
     box-shadow: 0 4px 15px rgba(79, 70, 229, 0.2);
     transform: translateY(-2px);
   }
