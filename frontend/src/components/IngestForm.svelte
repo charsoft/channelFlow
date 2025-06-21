@@ -48,7 +48,7 @@
     disabled={busy}
     required
   />
-  <button type="submit" disabled={busy} class="ingest-button">
+  <button type="submit" disabled={busy} class="button-primary ingest-button">
     {#if busy}Processing…{:else}Go{/if}
   </button>
 </form>

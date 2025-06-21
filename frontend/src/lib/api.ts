@@ -23,9 +23,12 @@ export async function sendIngest(
         headers: await getHeaders(),
         body: JSON.stringify({ url, force })
     });
-    if (!res.ok) {
+    if (!res.ok && res.status !== 202) { // Allow 202 to pass through
         const err = await res.json();
-        throw new Error(err.detail || `Server error ${res.status}`);
+        const detail = err.detail || `Server error ${res.status}`;
+        const finalErr = new Error(detail);
+        if (err.code) finalErr.code = err.code;
+        throw finalErr;
     }
     const json = await res.json();
     return json.video_id;
@@ -39,9 +42,8 @@ export function listenForUpdates(videoId: string) {
     eventSource.close();
   }
 
-  // Clear old data from the stores
-  resetStores();
-  
+  // resetStores(); // This is now handled by the component.
+
   const es = new EventSource(`/api/stream-status/${videoId}`);
   
   es.onmessage = (e) => {
@@ -62,6 +64,17 @@ export function listenForUpdates(videoId: string) {
   
   eventSource = es;
   return es;
+}
+
+export async function getVideoStatus(videoId: string): Promise<any> {
+    const res = await fetch(`/api/status/${videoId}`, {
+        headers: await getHeaders()
+    });
+    // This will not throw on 404, which is what we want.
+    if (!res.ok) return null; 
+    
+    const payload = await res.json();
+    return payload.data;
 }
 
 export async function retriggerStage(videoId: string, stage: string): Promise<void> {
@@ -136,4 +149,3 @@ export async function disconnectYouTube(): Promise<void> {
         throw new Error(err.detail || 'Failed to disconnect YouTube account.');
     }
 }
-

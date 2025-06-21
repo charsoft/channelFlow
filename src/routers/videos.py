@@ -247,45 +247,51 @@ async def re_trigger(request: RetriggerRequest, current_user: dict = Depends(get
     user_id = video_data.get("user_id")
     
     event_to_publish = None
-    if request.stage == "ingestion":
-        # This case might need more logic to re-fetch from YouTube
-        pass
-    elif request.stage == "transcription":
-        await video_doc_ref.update({"status": "re-triggering transcription", "status_message": "Re-starting workflow at: Transcription"})
+    if request.stage == "transcription":
+        # Re-running transcription starts from the very beginning of that phase,
+        # which involves the IngestionAgent downloading the audio file again.
+        await video_doc_ref.update({"status": "pending_transcription_rerun"})
         event_to_publish = NewVideoDetected(
             video_id=request.video_id,
             video_url=video_data.get("video_url"),
             video_title=video_title,
-            user_id=user_id
+            user_id=user_id,
+            force_transcript=True # Custom flag for the ingestion agent
         )
     elif request.stage == "analysis":
-        await video_doc_ref.update({"status": "re-triggering analysis", "status_message": "Re-starting workflow at: Analysis"})
+        transcript_gcs_uri = video_data.get("transcript_gcs_uri")
+        if not transcript_gcs_uri:
+            raise HTTPException(status_code=400, detail="Cannot re-trigger analysis without a transcript.")
+        
+        await video_doc_ref.update({"status": "pending_analysis_rerun"})
         event_to_publish = TranscriptReady(
             video_id=request.video_id,
             video_title=video_title,
-            transcript_gcs_uri=video_data.get("transcript_gcs_uri")
+            transcript_gcs_uri=transcript_gcs_uri
         )
-    elif request.stage == "copywriting":
-        await video_doc_ref.update({"status": "re-triggering copywriting", "status_message": "Re-starting workflow at: Copywriting"})
+    elif request.stage == "copywriting" or request.stage == "visuals":
+        structured_data = video_data.get("structured_data")
+        if not structured_data:
+            raise HTTPException(status_code=400, detail="Cannot re-trigger copywriting or visuals without analysis data.")
+        
+        # Both Copywriting and Visuals are triggered by the analysis being complete.
+        # Re-running either will re-run both, which is a known architectural limitation.
+        if request.stage == "copywriting":
+            await video_doc_ref.update({"status": "pending_copywriting_rerun"})
+        else: # visuals
+            await video_doc_ref.update({"status": "pending_visuals_rerun"})
+
         event_to_publish = ContentAnalysisComplete(
             video_id=request.video_id,
             video_title=video_title,
-            structured_data=video_data.get("structured_data")
+            structured_data=structured_data
         )
-    elif request.stage == "visuals":
-        await video_doc_ref.update({"status": "re-triggering visuals", "status_message": "Re-starting workflow at: Visuals"})
-        event_to_publish = CopyReady(
-            video_id=request.video_id,
-            video_title=video_title,
-            copy_gcs_uri=video_data.get("substack_gcs_uri"),
-            user_id=user_id
-        )
-        
+
     if event_to_publish:
         await event_bus.publish(event_to_publish)
-        return JSONResponse(status_code=200, content={"message": f"Stage '{request.stage}' re-triggered successfully."})
-    else:
-        return JSONResponse(status_code=400, content={"message": f"Invalid stage '{request.stage}' provided."})
+        return JSONResponse(status_code=200, content={"message": f"Successfully re-triggered stage: {request.stage}"})
+    
+    return JSONResponse(status_code=400, content={"message": "Invalid stage provided."})
 
 @router.get("/api/videos")
 async def get_videos(

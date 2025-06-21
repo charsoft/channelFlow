@@ -5,7 +5,7 @@
   import ConnectYouTubeButton from '../components/ConnectYouTubeButton.svelte';
   import SystemFlow from './SystemFlow.svelte';
   import { accessToken } from '../lib/auth';
-  import { videoStatus } from '../lib/stores';
+  import { videoStatus, resetStores } from '../lib/stores';
   import { listenForUpdates, checkYouTubeConnection, disconnectYouTube, retriggerStage } from '../lib/api';
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
@@ -55,10 +55,11 @@
 
   function handleNewIngestion(e: CustomEvent) {
     const videoId = e.detail.videoId;
-    if (videoId) {
-      hasHandledFirstStatus = false; // Reset for new video
-      listenForUpdates(videoId);
-    }
+    if (!videoId) return;
+
+    // Always reset the UI and attach the listener for a new user submission.
+    resetStores();
+    listenForUpdates(videoId);
   }
 
   function handleView(e: CustomEvent) {
@@ -103,14 +104,16 @@
     });
   }
 
-  // This reactive block automatically enters "Restart Mode"
-  // if the loaded video is already past the 'ingesting' stage.
+  // This reactive block is removed as it's causing unpredictable UI behavior.
+  // The user will now explicitly control restart mode via the UI button.
+  /*
   $: if ($videoStatus?.status && !hasHandledFirstStatus) {
     if ($videoStatus.status !== 'ingesting') {
         isRestartMode = true;
     }
     hasHandledFirstStatus = true;
   }
+  */
 
    const agents = [
     'Ingestion',
@@ -126,26 +129,31 @@
     'ingested':          { agent: 'Ingestion',     state: 'completed' },
     'ingestion_failed':  { agent: 'Ingestion',     state: 'failed'    },
 
+    'pending_transcription_rerun': { agent: 'Transcription', state: 'active' },
     'transcribing':      { agent: 'Transcription', state: 'active'    },
     'transcribed':       { agent: 'Transcription', state: 'completed' },
     'transcribing_failed': { agent: 'Transcription', state: 'failed' },
     'transcription_failed': { agent: 'Transcription', state: 'failed' },
     'auth_failed':       { agent: 'Transcription', state: 'failed'    },
 
+    'pending_analysis_rerun': { agent: 'Analysis', state: 'active' },
     'analyzing':         { agent: 'Analysis',      state: 'active'    },
     'analyzed':          { agent: 'Analysis',      state: 'completed' },
     'analyzing_failed':   { agent: 'Analysis',      state: 'failed'    },
     'analysis_failed':   { agent: 'Analysis',      state: 'failed'    },
 
+    'pending_copywriting_rerun': { agent: 'Copywriting', state: 'active' },
     'generating_copy':   { agent: 'Copywriting',   state: 'active'    },
     'copy_generated':    { agent: 'Copywriting',   state: 'completed' },
     'generating_copy_failed': { agent: 'Copywriting',   state: 'failed'    },
     'copy_failed':       { agent: 'Copywriting',   state: 'failed'    },
 
+    'pending_visuals_rerun': { agent: 'Visuals', state: 'active' },
     'generating_visuals':{ agent: 'Visuals',       state: 'active'    },
     'visuals_generated': { agent: 'Visuals',       state: 'completed' },
     'generating_visuals_failed': { agent: 'Visuals',       state: 'failed'    },
     'visuals_failed':    { agent: 'Visuals',       state: 'failed'    },
+    'visuals_skipped':   { agent: 'Visuals',       state: 'completed' }, // Treat skipped as completed
 
     'publishing':        { agent: 'Publisher',     state: 'active'    },
     'published':         { agent: 'Publisher',     state: 'completed' },

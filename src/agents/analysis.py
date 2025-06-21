@@ -115,23 +115,22 @@ class AnalysisAgent:
         full_transcript = transcript_data.get("full_transcript", "")
 
         return f"""
-        You are an expert social media video editor and content strategist, specializing in identifying viral moments for YouTube Shorts.
-        Analyze the following video transcript to identify 3-5 segments that would make compelling, self-contained YouTube Shorts (under 60 seconds).
+        You are an expert content strategist and creative director. Your goal is to analyze a video transcript and output a comprehensive JSON object that includes content analysis and creative assets.
 
-        For each candidate, provide:
-        - A catchy, SEO-friendly title.
-        - The start and end time in seconds.
-        - A brief (1-2 sentence) reason explaining why this segment is a strong candidate (e.g., "Strong emotional hook," "Clear, actionable advice," "Controversial but interesting take").
-        - The transcript snippet for that segment.
+        First, analyze the following video transcript to identify key themes, summaries, and compelling moments.
+        Second, based on your analysis, create a set of 3-5 diverse and visually descriptive prompts for an AI image generation model like Imagen. These prompts should capture the essence of the video's main ideas.
 
-        Your primary goal is to find "golden nuggets"—moments of high emotion, clear value, or strong hooks that can stand alone and capture attention.
+        **CRITICAL INSTRUCTIONS FOR IMAGE PROMPTS:**
+        - Prompts must be purely descriptive and should NOT contain any text, letters, or words meant to be rendered in the image.
+        - Aim for a variety of styles (e.g., photorealistic, abstract, graphic design).
+        - The prompts should be detailed enough to give the image model clear direction.
 
         Here is the full video transcript:
         ---
         {full_transcript}
         ---
 
-        Based on the transcript, generate a JSON object with the following schema:
+        Based on the transcript, generate a single, valid JSON object with the exact following schema. Do not add any text or formatting outside of the JSON object.
         {{
             "key_themes": ["A list of 3-5 main topics or ideas discussed in the video."],
             "summary": "A concise, one-paragraph summary of the video's content.",
@@ -146,6 +145,11 @@ class AnalysisAgent:
                     "reason": "This segment has a very strong, controversial hook and presents a clear, common problem that will resonate with the target audience.",
                     "transcript_snippet": "The biggest mistake that I see programmers make is..."
                 }}
+            ],
+            "image_prompts": [
+                "A photorealistic image of a frustrated programmer staring at a complex web of glowing digital code that forms a tangled knot.",
+                "An abstract, minimalist graphic representing the concept of 'imposter syndrome', using simple shapes and a muted color palette to convey a sense of doubt and isolation.",
+                "Cinematic, dramatic shot of a single keyboard key being pressed, with a shockwave of light emanating from it, symbolizing a breakthrough moment in coding."
             ]
         }}
         """ 
