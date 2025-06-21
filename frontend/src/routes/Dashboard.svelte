@@ -289,6 +289,7 @@
 <style>
     .dashboard-container {
         max-width: 1400px;
+    
         margin: 0 auto;
         padding: 2.5rem;
         font-family: 'Inter', sans-serif;

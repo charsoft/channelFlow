@@ -257,8 +257,8 @@
   }
 
   .content-column {
-    max-width: 800px;
-    width: 100%;
+    max-width: 100%;
+    width: 1200px;
     background-color: #ffffff;
     padding: 2.5rem;
     border-radius: 0.75rem;
