@@ -122,9 +122,11 @@
 
    const statusMap: Record<string, { agent: string; state: 'active' | 'completed' | 'failed' }> = {
     'ingesting':         { agent: 'Ingestion',     state: 'active'    },
+    'downloading':       { agent: 'Ingestion',     state: 'active'    },
     'ingested':          { agent: 'Ingestion',     state: 'completed' },
     'ingestion_failed':  { agent: 'Ingestion',     state: 'failed'    },
 
+    'pending_transcription_rerun': { agent: 'Transcription', state: 'active' },
     'transcribing':      { agent: 'Transcription', state: 'active'    },
     'transcribed':       { agent: 'Transcription', state: 'completed' },
     'transcribing_failed': { agent: 'Transcription', state: 'failed' },
@@ -244,8 +246,11 @@
   }
 
   .content-column {
-    max-width: 800px;
-    width: 100%;
+    justify-content: center;
+    min-height:90vh;
+    max-width: none;
+    width: 75%;
+    justify-content: center;
     background-color: #ffffff;
     padding: 2.5rem;
     border-radius: 0.75rem;

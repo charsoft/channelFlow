@@ -248,8 +248,9 @@
 <style>
     .dashboard-container {
         max-width: 1400px;
+        min-height: 90vh;
         margin: 0 auto;
-        padding: 2.5rem;
+        padding: clamp(1rem, 5vw, 2.5rem); /* ✅ fluid padding */
         font-family: 'Inter', sans-serif;
         background-color: #ffffff;
         border-radius: 0.75rem;
@@ -416,6 +417,7 @@
         border: none;
         cursor: pointer;
         font-size: 0.9rem;
+        color:#475569;
     }
 
     .menu-item:hover {

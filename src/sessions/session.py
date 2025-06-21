@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
 
-from ..events.event import Event
+from ..event_base import Event
 
 
 class Session(BaseModel):

@@ -14,9 +14,20 @@
 
 import abc
 from typing import Optional
+from pydantic import BaseModel, Field
+import datetime
+import uuid
 
 from google.genai import types
 
+class Artifact(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    session_id: str
+    app_name: str
+    filename: str
+    content: bytes
+    created_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
 
 class BaseArtifactService(abc.ABC):
   """Base class for artifact services."""

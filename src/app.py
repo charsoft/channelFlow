@@ -7,13 +7,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from src.agents.analysis import AnalysisAgent
-from src.agents.copywriter import CopywriterAgent
-from src.agents.ingestion import IngestionAgent
-from src.agents.publisher import PublisherAgent
-from src.agents.transcription import TranscriptionAgent
-from src.agents.visuals import VisualsAgent
-from src.routers import admin, auth, clips, generation, videos
+from .routers import (
+    auth as auth_router,
+    videos as videos_router,
+    clips as clips_router,
+    generation as generation_router,
+    admin as admin_router,
+    db_upload as db_upload_router,
+)
+from .services import session_service, artifact_service
 
 # Load environment variables from .env file
 load_dotenv()
@@ -59,6 +61,14 @@ async def startup_event():
     On startup, instantiate all the agents to register their event handlers
     and start any background tasks.
     """
+    # Import agents here to avoid circular dependencies on startup
+    from src.agents.analysis import AnalysisAgent
+    from src.agents.copywriter import CopywriterAgent
+    from src.agents.ingestion import IngestionAgent
+    from src.agents.publisher import PublisherAgent
+    from src.agents.transcription import TranscriptionAgent
+    from src.agents.visuals import VisualsAgent
+
     app.state.video_cache = video_cache
 
     print("Application starting up...")
@@ -136,10 +146,11 @@ async def startup_event():
     print("All agents have been initialized.")
 
 
-app.include_router(auth.router)
-app.include_router(videos.router)
-app.include_router(generation.router)
-app.include_router(clips.router)
-app.include_router(admin.router)
+app.include_router(auth_router.router)
+app.include_router(videos_router.router)
+app.include_router(clips_router.router)
+app.include_router(generation_router.router)
+app.include_router(admin_router.router)
+app.include_router(db_upload_router.router)
 
 app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static-frontend") 

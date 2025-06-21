@@ -1,121 +1,274 @@
 <script lang="ts">
   import Swal from 'sweetalert2';
+  import { accessToken } from '../lib/auth';
+  import { push } from 'svelte-spa-router';
 
-  async function handleCleanup() {
-      const result = await Swal.fire({
-          title: 'Are you sure?',
-          text: "This will permanently delete all cached video files from the server.",
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonColor: '#d33',
-          cancelButtonColor: '#3085d6',
-          confirmButtonText: 'Yes, clean it up!'
+  let youtubeUrl = '';
+  let selectedFile: File | null = null;
+  let fileInput: HTMLInputElement;
+  let isUploading = false;
+  let isCleaning = false;
+
+  async function handleUpload() {
+    if (!youtubeUrl || !selectedFile) {
+        Swal.fire('Error', 'Please provide both a YouTube URL and a video file.', 'error');
+        return;
+    }
+    isUploading = true;
+
+    const formData = new FormData();
+    formData.append('youtube_url', youtubeUrl);
+    formData.append('file', selectedFile);
+
+    try {
+      const token = $accessToken;
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+
+      const response = await fetch('/api/admin/upload-video', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
       });
 
-      if (result.isConfirmed) {
-          Swal.fire({
-              title: 'Cleaning...',
-              text: 'Please wait while the server cleans up the files.',
-              allowOutsideClick: false,
-              didOpen: () => {
-                  Swal.showLoading();
-              }
-          });
+      const result = await response.json();
 
-          try {
-              const response = await fetch('/api/cleanup-cache', {
-                  method: 'POST',
-              });
-              const data = await response.json();
-
-              if (response.ok) {
-                  Swal.fire('Cleaned!', data.message, 'success');
-              } else {
-                  throw new Error(data.message || 'Failed to clean up cache.');
-              }
-          } catch (error: any) {
-              console.error('Cleanup error:', error);
-              Swal.fire('Error!', `An error occurred: ${error.message}`, 'error');
-          }
+      if (!response.ok) {
+        throw new Error(result.detail || 'An unknown error occurred.');
       }
+
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Upload successful! Processing has started.',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
+      });
+
+      // Reset the form for the next upload
+      youtubeUrl = '';
+      selectedFile = null;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+
+    } catch (error: any) {
+      Swal.fire('Upload Failed', error.message, 'error');
+    } finally {
+      isUploading = false;
+    }
   }
+
+  async function handleCleanup() {
+    isCleaning = true;
+    try {
+      const token = $accessToken;
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+      
+      const response = await fetch('/api/admin/cleanup-orphans', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.detail || 'An unknown error occurred during cleanup.');
+      }
+
+      Swal.fire('Cleanup Successful', `Cleaned up ${result.cleaned_count} orphaned documents.`, 'success');
+
+    } catch (error: any) {
+      Swal.fire('Cleanup Failed', error.message, 'error');
+    } finally {
+      isCleaning = false;
+    }
+  }
+
 </script>
 
-<div class="maintenance-page">
-    <div class="maintenance-content">
-        <h1>Maintenance</h1>
-        <p>Use these tools for site-wide administrative tasks.</p>
+<style>
+  .maintenance-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background-color: var(--background-color-light);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
 
-        <div class="task-card">
-            <h3>Clean Up Video Cache</h3>
-            <p class="description">
-                Immediately deletes all temporarily cached video files from the server's storage. This is useful for freeing up disk space but will require videos to be re-downloaded if transcription is re-triggered.
-            </p>
-            <button class="button-danger" on:click={handleCleanup}>Clean Up Video Cache</button>
-        </div>
+  .tool-section {
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .tool-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-fill-color: transparent;
+    display: inline-block; /* Required for gradient to wrap text correctly */
+  }
+
+  p {
+    font-size: 0.95rem;
+    color: var(--text-color-secondary);
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+  }
+
+  .upload-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    background-color: var(--agent-bg);
+    padding: 1.5rem;
+    border-radius: 8px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .form-group label {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color-primary);
+  }
+
+  .form-group input {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--background-color);
+    color: var(--text-color-primary);
+    font-size: 1rem;
+  }
+
+  .form-group input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color-light);
+  }
+
+  .button-primary, .button-danger {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .button-primary {
+    background: var(--primary-gradient);
+    color: white;
+  }
+
+  .button-primary:hover:not(:disabled) {
+    filter: brightness(1.15);
+    transform: translateY(-2px);
+  }
+
+  .button-danger {
+    background-color: var(--danger-color);
+    color: white;
+  }
+
+  .button-danger:hover:not(:disabled) {
+    background-color: var(--danger-color-dark);
+    transform: translateY(-2px);
+  }
+
+  button:disabled {
+    background: var(--border-color);
+    cursor: not-allowed;
+  }
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+</style>
+
+<div class="maintenance-container">
+    <h1>Maintenance Tools</h1>
+
+    <div class="tool-section">
+        <h2>Manual Video Upload</h2>
+        <p>
+            This tool allows you to manually upload a video file and associate it with a YouTube URL.
+            This is a workaround for cases where the automated download from YouTube fails.
+            The system will use your uploaded file instead of trying to download it.
+        </p>
+        <form on:submit|preventDefault={handleUpload} class="upload-form">
+            <div class="form-group">
+                <label for="youtube-url">YouTube Video URL</label>
+                <input type="url" id="youtube-url" bind:value={youtubeUrl} placeholder="https://www.youtube.com/watch?v=..." required>
+            </div>
+            <div class="form-group">
+                <label for="video-file">Video File (.mp4, .mov)</label>
+                <input type="file" id="video-file" bind:this={fileInput} on:change={(e) => selectedFile = e.currentTarget.files ? e.currentTarget.files[0] : null} accept="video/mp4,video/quicktime,video/x-m4v,video/mov" required>
+            </div>
+            <button type="submit" class="button-primary" disabled={isUploading}>
+                {#if isUploading}
+                    <div class="spinner"></div>
+                    <span>Uploading...</span>
+                {:else}
+                    Upload and Process
+                {/if}
+            </button>
+        </form>
+    </div>
+
+    <div class="tool-section">
+        <h2>Orphan Cleanup</h2>
+        <p>
+            This tool scans for and removes orphaned Firestore documents and their corresponding Cloud Storage files.
+            An orphan is a record that was created but failed early in the ingestion process, leaving it in an incomplete state.
+        </p>
+        <button on:click={handleCleanup} class="button-danger" disabled={isCleaning}>
+             {#if isCleaning}
+                <div class="spinner"></div>
+                <span>Cleaning...</span>
+            {:else}
+                Run Cleanup
+            {/if}
+        </button>
     </div>
 </div>
-
-<style>
-    .maintenance-page {
-        max-width: 900px;
-        margin: 0 auto;
-        font-family: 'Inter', sans-serif;
-    }
-
-    .maintenance-content {
-        background-color: #ffffff;
-        border-radius: 0.75rem;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
-        padding: 2rem;
-    }
-
-    h1 {
-        font-size: 2.5rem;
-        font-weight: 800;
-        margin-bottom: 0.5rem;
-        color: #1e293b;
-    }
-
-    p {
-        font-size: 1.1rem;
-        color: #64748b;
-        margin-bottom: 3rem;
-    }
-
-    .task-card {
-        background-color: #ffffff;
-        border-radius: 0.75rem;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
-        padding: 2rem;
-    }
-
-    .task-card h3 {
-        font-size: 1.5rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-        color: #374151;
-    }
-
-    .task-card .description {
-        font-size: 1rem;
-        line-height: 1.6;
-        color: #4b5563;
-        margin-bottom: 1.5rem;
-    }
-
-    .button-danger {
-        background-color: #fee2e2;
-        border: 1px solid #fecaca;
-        color: #b91c1c;
-        padding: 0.6rem 1.2rem;
-        font-size: 0.9rem;
-        font-weight: 600;
-        border-radius: 0.375rem;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-    .button-danger:hover {
-        background-color: #fecaca;
-    }
-</style> 

@@ -15,6 +15,14 @@ class NewVideoDetected(Event):
     user_id: Optional[str] = None
 
 @dataclass
+class IngestedVideo(Event):
+    """Fired when a video file is confirmed to be in GCS and ready for transcription."""
+    video_id: str
+    gcs_uri: str
+    video_title: str
+    user_id: Optional[str] = None
+
+@dataclass
 class TranscriptReady(Event):
     """Fired when the transcript is ready."""
     video_id: str

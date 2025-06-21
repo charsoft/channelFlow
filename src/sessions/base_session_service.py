@@ -16,7 +16,7 @@ import abc
 from typing import Any
 from typing import Optional
 
-from ..events.event import Event
+from ..event_base import Event
 from .session import Session
 from .state import State
 

@@ -348,9 +348,10 @@
                                 <img src={imageUrl} alt="Generated visual">
                             </button>
                             <div class="thumbnail-footer">
-                                <button class="button-secondary preview-post-btn" on:click|stopPropagation={() => showPostPreview(imageUrl)}>
+                                <span><button class="button-secondary preview-post-btn" on:click|stopPropagation={() => showPostPreview(imageUrl)}>
                                     Preview Post
-                                </button>
+                                </button></span>
+                                <button class="button delete-img" aria-label="Delete" >&times;</button>
                             </div>
                         </div>
                     {/each}
@@ -503,8 +504,9 @@
 /* Base Layout */
 .detail-container {
     max-width: 1400px;
+    min-height: 90vh;
     margin: 0 auto;
-    padding: 2rem;
+    padding: clamp(1rem, 5vw, 2.5rem);
     font-family: 'Inter', sans-serif;
     background-color: #ffffff;
     border-radius: 0.75rem;
@@ -554,9 +556,10 @@
 .detail-header h1 {
     font-size: 2.5rem;
     font-weight: 800;
-    color: #1e293b;
+    color: #4F46E5;
     line-height: 1.2;
 }
+
 
 /* Tabs */
 .tab-nav {
@@ -627,48 +630,78 @@
 
 /* Assets Tab */
 .thumbnails-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
-    max-width: 900px; /* Constrains the grid from stretching too far */
+  display: flex;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); /* ⬅️ tighter minimum */
+  gap: 0.2rem; /* ⬅️ less space between cards */
+  max-width: 1000px; /* ⬆️ slightly looser max if you want more breathing room */
+  margin: 0 auto;
+  align-items: flex-start;
 }
+
 .thumbnail-item {
-    background-color: #fff;
-    border-radius: 0.5rem;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    display: flex;
-    flex-direction: column;
+  background-color: #fff;
+  min-width: 100px;
+  max-width: 250px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* ⬆️ stronger depth */
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
+.thumbnail-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+}
+
 .thumbnail-image-wrapper {
-    cursor: pointer;
-    aspect-ratio: 1 / 1; /* Modern CSS for 1:1 Aspect Ratio */
-    background-color: #f0f2f5;
-    overflow: hidden;
-    border: none;
-    padding: 0;
+  aspect-ratio: 1 / 1;
+  background-color: #f1f5f9;
+  overflow: hidden;
+  border: none;
+  padding: 0;
+  transition: background-color 0.2s ease;
 }
-.thumbnail-image-wrapper img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-    transition: transform 0.2s ease-in-out;
-}
-.thumbnail-image-wrapper:hover img {
-    transform: scale(1.05);
+
+
+
+.thumbnail-image-wrapper:hover {
+  background-color: #e2e8f0;
 }
 .thumbnail-footer {
-    padding: 0.75rem;
-    background-color: #f8fafc;
-    border-top: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: center;
+  padding: 0.75rem 1rem;
+  background-color: #f9fafb;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: flex-start;
+  
+  font-size: 0.9rem;
+  color: #475569;
+  font-weight: 500;
 }
 
 .preview-post-btn {
     width: 100%;
 }
+.delete-img {
+  background: none;
+  border: none;
+  color: #dc2626; /* Tailwind's red-600 */
+  font-size: 1.25rem;
+  line-height: 1;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  margin-left: auto; /* Pushes it to the right in flex containers */
+}
+
+.delete-img:hover {
+  background-color: #fee2e2; /* red-100 */
+  color: #b91c1c; /* red-700 */
+}
+
 
 .thumbnail-prompt {
     padding: 1rem;

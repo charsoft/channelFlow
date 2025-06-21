@@ -17,7 +17,7 @@ from google.oauth2 import service_account
 
 from ..database import db
 from ..event_bus import event_bus
-from ..events import NewVideoDetected, TranscriptReady
+from ..events import NewVideoDetected, IngestedVideo, TranscriptReady
 from ..security import decrypt_data, encrypt_data
 
 class TranscriptionAgent:
@@ -39,7 +39,9 @@ class TranscriptionAgent:
         self.bucket_name = bucket_name
         self.bucket = self.storage_client.bucket(bucket_name)
         self.ffmpeg_path = ffmpeg_path
+        # Listen for both the original event and our new manual upload event
         event_bus.subscribe(NewVideoDetected, self.handle_new_video)
+        event_bus.subscribe(IngestedVideo, self.handle_video_ingested)
 
     async def update_video_status(self, video_id: str, status: str, data: dict = None):
         doc_ref = db.collection("videos").document(video_id)
@@ -53,88 +55,110 @@ class TranscriptionAgent:
             
         await doc_ref.update(update_data)
 
-    async def handle_new_video(self, event: NewVideoDetected):
-        asyncio.create_task(self.process_video(event))
-
-    async def process_video(self, event: NewVideoDetected):
-        print(f"✍️ TranscriptionAgent: Received new video: {event.video_title}")
+    async def handle_new_video(self, event: "NewVideoDetected"):
+        """Handles the original flow where the video needs to be downloaded."""
+        print(f"✍️ TranscriptionAgent: Received new video to download: {event.video_title}")
+        
+        # Immediately update status to show we are starting the download
+        await self.update_video_status(
+            event.video_id,
+            "downloading",
+            {"status_message": "Attempting to download video from source..."}
+        )
 
         try:
-            video_gcs_uri, video_gcs_blob = await self._get_video_gcs_uri(event)
-            if not video_gcs_uri:
+            gcs_uri, _ = await self._download_video_to_gcs(event)
+            if not gcs_uri:
                 raise FileNotFoundError("Could not locate or download the video file.")
-
-            await self.update_video_status(
-                event.video_id, 
-                "transcribing", 
-                {"status_message": "Starting transcription with Gemini..."}
-            )
-
-            print(f"   Passing GCS URI '{video_gcs_uri}' to Gemini for transcription...")
-
-            # grab the signed URL on the Blob (as before)
-            blob = self.bucket.blob(video_gcs_blob.name)
-            video_url = blob.generate_signed_url(
-                expiration=timedelta(minutes=15),
-                method="GET",
-                version="v4"
-            )
-
-            # download the bytes
-            response = requests.get(video_url, stream=True)
-            response.raise_for_status()
-            video_data = b''.join(response.iter_content(chunk_size=8192))
             
-            mime_type = video_gcs_blob.content_type or "video/mp4"
-            
-            # prepare the multimodal Part
-            video_part = Part.from_bytes(
-                data=video_data,
-                mime_type=mime_type
-            )
-            prompt = "Please transcribe this video's audio."
-
-            # ←— HERE: use the supported sync generate_content, wrapped in to_thread
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=self.model_name,
-                contents=[video_part, prompt]
-            )  # :contentReference[oaicite:0]{index=0}
-
-            print("   Transcription received.")
-
-            transcript_json = self._parse_transcript_response(response)
-            transcript_gcs_uri = await self._save_transcript_to_gcs(event.video_id, transcript_json)
-
-            await self.update_video_status(
-                event.video_id,
-                "transcribed",
-                {
-                    "transcript_gcs_uri": transcript_gcs_uri, 
-                    "original_video_gcs_uri": video_gcs_uri,
-                    "status_message": "Transcription complete. Saved to cloud."
-                }
-            )
-
-            await event_bus.publish(TranscriptReady(
-                video_id=event.video_id,
-                video_title=event.video_title,
-                transcript_gcs_uri=transcript_gcs_uri
-            ))
-
+            # Now that we have a GCS URI, we can proceed with the common transcription logic
+            await self._perform_transcription(event.video_id, event.video_title, gcs_uri)
         except Exception as e:
-            print(f"❌ TranscriptionAgent Error: {e}")
+            print(f"❌ TranscriptionAgent Error during download: {e}")
             await self.update_video_status(
                 event.video_id, 
-                "transcription_failed", 
+                "ingestion_failed",
+                {"error": str(e), "status_message": "Failed to download video from YouTube. Please use the Manual Video Upload tool on the Maintenance page."}
+            )
+
+    async def handle_video_ingested(self, event: "IngestedVideo"):
+        """Handles the workaround flow where the video is already in GCS."""
+        print(f"✍️ TranscriptionAgent: Received pre-ingested video: {event.video_title}")
+        try:
+            if not event.gcs_uri:
+                raise ValueError("GCS URI not provided in IngestedVideo event.")
+            
+            # The GCS URI is already provided, so we can proceed directly
+            await self._perform_transcription(event.video_id, event.video_title, event.gcs_uri)
+        except Exception as e:
+            # This error is for the transcription step itself
+            print(f"❌ TranscriptionAgent Error during transcription: {e}")
+            await self.update_video_status(
+                event.video_id, 
+                "transcription_failed",
                 {"error": str(e), "status_message": "Failed to transcribe video."}
             )
 
+    async def _perform_transcription(self, video_id: str, video_title: str, gcs_uri: str):
+        """Core logic to transcribe a video file already located in GCS."""
+        await self.update_video_status(
+            video_id, 
+            "transcribing", 
+            {"status_message": "Starting transcription with Gemini..."}
+        )
+        print(f"   Transcribing from GCS URI: {gcs_uri}")
 
-    async def _get_video_gcs_uri(self, event: NewVideoDetected) -> (str, storage.Blob):
-        possible_extensions = ['.mp4', '.mkv', '.webm', '.mov']
+        blob_name = gcs_uri.replace(f"gs://{self.bucket_name}/", "")
+        blob = self.bucket.blob(blob_name)
+        if not await asyncio.to_thread(blob.exists):
+            raise FileNotFoundError(f"File not found in GCS at {gcs_uri}")
+
+        video_url = blob.generate_signed_url(
+            expiration=timedelta(minutes=15),
+            method="GET",
+            version="v4"
+        )
+        response = requests.get(video_url, stream=True)
+        response.raise_for_status()
+        video_data = b''.join(response.iter_content(chunk_size=8192))
+        mime_type = blob.content_type or "video/mp4"
+
+        video_part = Part.from_bytes(data=video_data, mime_type=mime_type)
+        prompt = "Please transcribe this video's audio."
+
+        model_response = await asyncio.to_thread(
+            self.client.models.generate_content,
+            model=self.model_name,
+            contents=[video_part, prompt]
+        )
+        print("   Transcription received.")
+
+        transcript_json = self._parse_transcript_response(model_response)
+        transcript_gcs_uri = await self._save_transcript_to_gcs(video_id, transcript_json)
+
+        await self.update_video_status(
+            video_id,
+            "transcribed",
+            {
+                "transcript_gcs_uri": transcript_gcs_uri, 
+                "original_video_gcs_uri": gcs_uri,
+                "status_message": "Transcription complete. Saved to cloud."
+            }
+        )
+
+        await event_bus.publish(TranscriptReady(
+            video_id=video_id,
+            video_title=video_title,
+            transcript_gcs_uri=transcript_gcs_uri
+        ))
+
+
+    async def _download_video_to_gcs(self, event: NewVideoDetected) -> (str, storage.Blob):
+        """Downloads a video from a URL using yt-dlp and saves it to GCS."""
+        # First, check if the file already exists from a previous attempt
+        possible_extensions = ['.mp4', '.mkv', '.webm', 'mov'] # Added mov
         for ext in possible_extensions:
-            blob_path = f"youtube_cache/{event.video_id}{ext}"
+            blob_path = f"videos/{event.video_id}{ext}" # Standardized path
             blob = self.bucket.blob(blob_path)
             if await asyncio.to_thread(blob.exists):
                 print(f"   Found video in GCS cache: {blob.name}")
@@ -160,7 +184,7 @@ class TranscriptionAgent:
             downloaded_file_basename = next(f for f in os.listdir(tmpdir) if f.startswith(event.video_id))
             downloaded_file_fullpath = os.path.join(tmpdir, downloaded_file_basename)
 
-            cache_blob_path = f"youtube_cache/{downloaded_file_basename}"
+            cache_blob_path = f"videos/{downloaded_file_basename}" # Standardized path
             cache_blob = self.bucket.blob(cache_blob_path)
             await asyncio.to_thread(cache_blob.upload_from_filename, downloaded_file_fullpath)
             print(f"   Saved downloaded video to GCS cache: {cache_blob.name}")
