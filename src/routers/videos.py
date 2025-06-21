@@ -248,27 +248,10 @@ async def re_trigger(request: RetriggerRequest, current_user: dict = Depends(get
     
     event_to_publish = None
     if request.stage == "ingestion":
-        if not user_id:
-            return JSONResponse(status_code=400, content={"message": "Cannot re-trigger ingestion without a user_id."})
-        # Note: This effectively restarts the entire process.
-        # We need to clean up old data first, just like in the /ingest-url endpoint.
-        print(f"Force re-ingesting for video {request.video_id} by user request.")
-        # This part is complex, involving GCS file deletion. For now, we will just re-trigger the event.
-        # A more robust solution would be to call a shared cleanup function.
-        await video_doc_ref.update({"status": "re-triggering ingestion", "status_message": "Restarting process from the beginning."})
-        event_to_publish = NewVideoDetected(
-            video_id=request.video_id,
-            video_url=video_data.get("video_url"),
-            video_title=video_title,
-            user_id=user_id
-        )
+        # This case might need more logic to re-fetch from YouTube
+        pass
     elif request.stage == "transcription":
-        if not user_id:
-            return JSONResponse(status_code=400, content={"message": "Cannot re-trigger transcription without a user_id."})
-        await video_doc_ref.update({"status": "re-triggering transcription"})
-        # This assumes the video is already downloaded and is just re-running the transcription model.
-        # Currently, the `NewVideoDetected` event is the only way to trigger transcription.
-        # This is a bit of a misnomer, but it's how the system is wired.
+        await video_doc_ref.update({"status": "re-triggering transcription", "status_message": "Re-starting workflow at: Transcription"})
         event_to_publish = NewVideoDetected(
             video_id=request.video_id,
             video_url=video_data.get("video_url"),
@@ -276,23 +259,21 @@ async def re_trigger(request: RetriggerRequest, current_user: dict = Depends(get
             user_id=user_id
         )
     elif request.stage == "analysis":
-        await video_doc_ref.update({"status": "re-triggering analysis"})
+        await video_doc_ref.update({"status": "re-triggering analysis", "status_message": "Re-starting workflow at: Analysis"})
         event_to_publish = TranscriptReady(
             video_id=request.video_id,
             video_title=video_title,
-            transcript_gcs_uri=video_data.get("transcript_gcs_uri"),
-            user_id=user_id
+            transcript_gcs_uri=video_data.get("transcript_gcs_uri")
         )
     elif request.stage == "copywriting":
-        await video_doc_ref.update({"status": "re-triggering copywriting"})
+        await video_doc_ref.update({"status": "re-triggering copywriting", "status_message": "Re-starting workflow at: Copywriting"})
         event_to_publish = ContentAnalysisComplete(
             video_id=request.video_id,
             video_title=video_title,
-            structured_data=video_data.get("structured_data"),
-            user_id=user_id
+            structured_data=video_data.get("structured_data")
         )
     elif request.stage == "visuals":
-        await video_doc_ref.update({"status": "re-triggering visuals"})
+        await video_doc_ref.update({"status": "re-triggering visuals", "status_message": "Re-starting workflow at: Visuals"})
         event_to_publish = CopyReady(
             video_id=request.video_id,
             video_title=video_title,

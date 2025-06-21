@@ -101,22 +101,36 @@
     return { text: 'Unknown', class: 'status-unknown' };
   }
 
-  function confirmAndReprocess(event: MouseEvent, videoId: string, videoUrl: string) {
+  async function reprocessAll(event: MouseEvent, videoId: string) {
     event.stopPropagation();
-    Swal.fire({
+    activeMenu = ''; // Close menu
+
+    const result = await Swal.fire({
       title: 'Are you sure?',
-      text: "This will delete all existing data and re-process the video from scratch. This cannot be undone.",
+      text: "This will re-trigger the entire workflow from the beginning. All intermediate data will be used if available.",
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonText: 'Yes, reprocess it!',
-      confirmButtonColor: '#DC2626',
-      cancelButtonColor: '#64748B'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        localStorage.setItem('reprocessUrl', videoUrl);
-        push('/');
-      }
+      confirmButtonText: 'Yes, re-trigger all!',
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33'
     });
+
+    if (result.isConfirmed) {
+      try {
+        const response = await fetch('/api/re-trigger', {
+          method: 'POST',
+          headers: await getHeaders(),
+          body: JSON.stringify({ video_id: videoId, stage: 'transcription' })
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to re-trigger workflow.');
+        }
+        console.log('Successfully re-triggered entire workflow.');
+      } catch (error: any) {
+        Swal.fire('Error', error.message, 'error');
+      }
+    }
   }
   
   async function retriggerStage(event: MouseEvent, videoId: string) {
@@ -141,7 +155,7 @@
       try {
         const response = await fetch('/api/re-trigger', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await getHeaders(),
           body: JSON.stringify({ video_id: videoId, stage: stage })
         });
 
@@ -150,14 +164,9 @@
           throw new Error(errorData.message || 'Failed to re-trigger stage.');
         }
 
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: `Stage '${stage}' re-triggered!`,
-          showConfirmButton: false,
-          timer: 3000
-        });
+        // We will remove the immediate notification to prevent duplicates.
+        // The SSE stream will trigger a UI update when the status actually changes.
+        console.log(`Request to re-trigger stage '${stage}' was successful.`);
 
       } catch (error: any) {
         Swal.fire('Error', error.message, 'error');
@@ -255,7 +264,7 @@
                                 {#if activeMenu === video.video_id}
                                 <div class="actions-menu" role="menu" on:click|stopPropagation>
                                     <button class="menu-item" role="menuitem" on:click={(e) => retriggerStage(e, video.video_id)}>Re-trigger Stage</button>
-                                    <button class="menu-item reprocess" role="menuitem" on:click={(e) => confirmAndReprocess(e, video.video_id, video.video_url)}>Reprocess All</button>
+                                    <button class="menu-item reprocess" role="menuitem" on:click={(e) => reprocessAll(e, video.video_id)}>Reprocess All</button>
                                 </div>
                                 {/if}
                             </div>

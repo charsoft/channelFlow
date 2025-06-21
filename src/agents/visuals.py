@@ -177,6 +177,13 @@ class VisualsAgent:
             # 1. Use Gemini to generate creative prompts for Imagen
             gemini_prompt = self._build_gemini_prompt(event.video_title, marketing_copy)
             response = await self.model.generate_content_async(gemini_prompt)
+
+            # --- Start Debug Logging ---
+            print("--- RAW GEMINI RESPONSE (VisualsAgent) ---")
+            print(response.text)
+            print("--- END RAW GEMINI RESPONSE (VisualsAgent) ---")
+            # --- End Debug Logging ---
+
             generated_prompts = json.loads(response.text).get("image_prompts", [])
             print(f"   Generated {len(generated_prompts)} image prompts.")
 
@@ -208,6 +215,14 @@ class VisualsAgent:
                 video_title=event.video_title,
             )
             await event_bus.publish(visuals_ready_event)
+            
+        except json.JSONDecodeError as e:
+            print("--- FAILED TO PARSE JSON (VisualsAgent) ---")
+            print(f"Error: {e}")
+            print("--- Raw response was: ---")
+            print(response.text if 'response' in locals() else "Response not available")
+            print("--------------------------")
+            await self._update_status(video_doc_ref, "visuals_failed", "Failed to parse image prompts from AI.", {"error": str(e)})
 
         except Exception as e:
             print(f"❌ VisualsAgent Error: {e}")

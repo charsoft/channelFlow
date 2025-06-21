@@ -67,12 +67,19 @@ class CopywriterAgent:
 
             # 3. Generate Copy with Gemini
             await self._update_status(video_doc_ref, "generating_copy", "Writing copy with Gemini...")
-            print("   Generating marketing copy with Gemini 1.5 Pro...")
+            print(f"   Generating marketing copy with {self.model.model_name}...")
             prompt = self._build_prompt(event.structured_data, transcript_text)
             response = await self.model.generate_content_async(
                 prompt,
                 generation_config=genai.types.GenerationConfig(response_mime_type="application/json")
             )
+            
+            # --- Start Debug Logging ---
+            print("--- RAW GEMINI RESPONSE ---")
+            print(response.text)
+            print("--- END RAW GEMINI RESPONSE ---")
+            # --- End Debug Logging ---
+
             copy_assets = json.loads(response.text)
             print("   Marketing copy generated.")
 
@@ -124,6 +131,16 @@ class CopywriterAgent:
             )
             await event_bus.publish(copy_ready_event)
 
+        except json.JSONDecodeError as e:
+            print("--- FAILED TO PARSE JSON ---")
+            print(f"Error: {e}")
+            print("--- Raw response was: ---")
+            # It's already been printed above, but we can print it again in the error context
+            print(response.text if 'response' in locals() else "Response not available")
+            print("--------------------------")
+            # Re-raise or handle as a failed status
+            await self._update_status(video_doc_ref, "generating_copy_failed", "Failed to parse marketing copy from AI.", {"error": str(e)})
+
         except Exception as e:
             print(f"❌ CopywriterAgent Error: {e}")
             await self._update_status(video_doc_ref, "generating_copy_failed", "Failed to generate marketing copy.", {"error": str(e)})
@@ -150,10 +167,11 @@ class CopywriterAgent:
         ---
 
         Generate a JSON object with the following schema. Ensure the tone is engaging, insightful, and tailored to each platform.
+        IMPORTANT: The entire output must be a single, valid JSON object. All strings within the JSON must be properly escaped, with any newline characters represented as \\n.
 
         {{
-            "facebook_post": "A post for Facebook or Instagram. Start with a strong hook, elaborate on the video's main themes, and encourage discussion. Use relevant hashtags.",
-            "email_newsletter": "A complete email newsletter formatted in Markdown. It must follow this exact structure: A short title, followed by '## Do you ever find yourself...' and an opening question. Then a brief reflection. A horizontal rule (---). '### ✨ In our latest video, we dive into a powerful idea:'. A blockquote with the core teaching. A sentence explaining what the video is NOT about, and then a sentence explaining what it IS about. A sentence describing the video's central metaphor. Another horizontal rule. The placeholder text '![Insert relevant image here](#)'. Another horizontal rule. A section titled '### 🔍 Here's a glimpse of what you'll explore:'. A list of the key takeaways from the ANALYSIS, each bolded and followed by its description on a new line. A final horizontal rule. A concluding sentence starting with 'If you're ready to...'. And finally, a link formatted as '👉 [**Watch Now**](#)'.",
-            "substack_article": "A complete Substack article of approximately 400 words, formatted as a single Markdown string. The article must start with a compelling hook to draw the reader in. It should then expand on the video's lessons in a thoughtful blog post. Conclude the article with 3-5 journal prompts that help the reader personalize and apply the content to their own life."
+            "facebook_post": "A post for Facebook or Instagram. Start with a strong hook, elaborate on the video's main themes, and encourage discussion. Use relevant hashtags. Use \\n for all newlines.",
+            "email_newsletter": "A complete email newsletter. CRITICAL: ALL newlines, paragraphs, and line breaks MUST be represented as literal \\n characters. It must follow this exact structure: A short title, followed by '## Do you ever find yourself...' and an opening question. Then a brief reflection. A horizontal rule (---). '### ✨ In our latest video, we dive into a powerful idea:'. A blockquote with the core teaching. A sentence explaining what the video is NOT about, and then a sentence explaining what it IS about. A sentence describing the video's central metaphor. Another horizontal rule. A section titled '### 🔍 Here's a glimpse of what you'll explore:'. A list of the key takeaways from the ANALYSIS, each bolded and followed by its description on a new line. A final horizontal rule. A concluding sentence starting with 'If you're ready to...'. And finally, a link formatted as '👉 [**Watch Now**](#)'.",
+            "substack_article": "A complete Substack article of approximately 400 words. CRITICAL: ALL newlines, paragraphs, and line breaks MUST be represented as literal \\n characters. The article must start with a compelling hook to draw the reader in. It should then expand on the video's lessons in a thoughtful blog post. Conclude the article with 3-5 journal prompts that help the reader personalize and apply the content to their own life."
         }}
         """ 
