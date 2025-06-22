@@ -283,74 +283,177 @@ async def stream_status(request: Request, video_id: str, token: str):
 
 @router.post("/api/re-trigger")
 async def re_trigger(request: RetriggerRequest, current_user: dict = Depends(get_current_user)):
-    video_doc_ref = db.collection("videos").document(request.video_id)
+    """
+    Re-triggers a specific stage of the pipeline for a video.
+    This is more nuanced than a full force re-ingest.
+    """
+    user_id = current_user.get("uid")
+    video_id = request.video_id
+    stage = request.stage.lower()
+    
+    video_doc_ref = db.collection("videos").document(video_id)
     doc = await video_doc_ref.get()
 
     if not doc.exists:
-        return JSONResponse(status_code=404, content={"message": "Video not found."})
+        raise HTTPException(status_code=404, detail="Video not found.")
 
     video_data = doc.to_dict()
-    video_title = video_data.get("video_title", "Unknown Title")
-    user_id = video_data.get("user_id")
-    
-    event_to_publish = None
-    if request.stage == "ingestion":
-        # Note: This is a destructive action and should be used with care.
-        # It's simplified here for brevity. A real implementation would have more safeguards.
-        await video_doc_ref.update({"status": "re-triggering ingestion", "status_message": "Re-starting process from the beginning."})
-        event_to_publish = NewVideoDetected(
-            video_id=request.video_id,
-            video_url=video_data.get("video_url"),
-            video_title=video_title,
-            user_id=user_id
+
+    if video_data.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="User not authorized to re-trigger this video.")
+
+    # --- Smart Re-trigger Logic ---
+    if stage == "ingestion":
+        # This is a special case: a "soft" restart from the beginning.
+        # We preserve the original video file but wipe everything else.
+        print(f"Executing SMART RESTART for video {video_id}...")
+        
+        # 1. Preserve the most critical asset: the GCS URI of the video file
+        gcs_uri_to_preserve = video_data.get("gcs_uri") or video_data.get("original_video_gcs_uri")
+        if not gcs_uri_to_preserve:
+            raise HTTPException(status_code=400, detail="Cannot restart from ingestion: original video file not found in GCS.")
+            
+        # 2. Delete all other generated assets (GCS files)
+        await delete_gcs_assets(video_data, keep_video=True)
+        
+        # 3. Re-create the document with preserved data
+        await video_doc_ref.set({
+            "video_id": video_id,
+            "user_id": user_id,
+            "video_title": video_data.get("video_title"),
+            "video_url": video_data.get("video_url"),
+            "gcs_uri": gcs_uri_to_preserve, # The preserved URI
+            "status": "ingested",
+            "status_message": "Smart restart initiated. Awaiting transcription.",
+            "created_at": video_data.get("created_at", firestore.SERVER_TIMESTAMP),
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        })
+        
+        # 4. Fire the correct event to use the existing file
+        event = IngestedVideo(
+            video_id=video_id,
+            gcs_uri=gcs_uri_to_preserve,
+            user_id=user_id,
+            video_title=video_data.get("video_title")
         )
-    elif request.stage == "transcription":
-        # Re-running transcription starts from the very beginning of that phase.
-        await video_doc_ref.update({"status": "pending_transcription_rerun", "status_message": "Re-running transcription..."})
-        event_to_publish = IngestedVideo(
-            video_id=request.video_id,
-            gcs_uri=video_data.get("original_video_gcs_uri"), # The Ingestion agent needs the location of the video file
-            video_title=video_title,
-            user_id=user_id
+        await event_bus.publish(event)
+        print(f"   Smart restart complete. Published IngestedVideo event for {video_id}.")
+        return JSONResponse(content={"message": "Smart restart successful. The pipeline will now run from the beginning using the existing video file."})
+
+    # --- Existing logic for re-triggering other specific stages ---
+    if stage == "transcription":
+        # We need the GCS URI of the original video
+        gcs_uri = video_data.get("gcs_uri") or video_data.get("original_video_gcs_uri")
+        if not gcs_uri:
+             raise HTTPException(status_code=400, detail="Cannot re-trigger transcription: original video file not found in GCS.")
+        # This event will be picked up by the Transcription Agent
+        event = IngestedVideo(
+            video_id=video_id,
+            gcs_uri=gcs_uri,
+            user_id=user_id,
+            video_title=video_data.get("video_title")
         )
-    elif request.stage == "analysis":
-        transcript_gcs_uri = video_data.get("transcript_gcs_uri")
-        await video_doc_ref.update({"status": "re-triggering analysis"})
-        event_to_publish = TranscriptReady(
-            video_id=request.video_id,
-            video_title=video_title,
-            transcript_gcs_uri=transcript_gcs_uri
+        # Clear out old transcription data
+        await video_doc_ref.update({
+            "status": "pending_transcription_rerun",
+            "status_message": "Re-triggering transcription.",
+            "transcript_gcs_uri": firestore.DELETE_FIELD
+        })
+
+    elif stage == "analysis":
+        # We need the transcript GCS URI
+        transcript_uri = video_data.get("transcript_gcs_uri")
+        if not transcript_uri:
+            raise HTTPException(status_code=400, detail="Cannot re-trigger analysis: transcript not found.")
+        event = TranscriptReady(
+            video_id=video_id,
+            video_title=video_data.get("video_title"),
+            transcript_gcs_uri=transcript_uri
         )
-    elif request.stage == "copywriting":
+        # Clear out old analysis data
+        await video_doc_ref.update({
+            "status": "pending_analysis_rerun",
+            "status_message": "Re-triggering content analysis.",
+            "structured_data": firestore.DELETE_FIELD
+        })
+
+    elif stage == "copywriting":
+        # We need the structured analysis data
         structured_data = video_data.get("structured_data")
         if not structured_data:
-            raise HTTPException(status_code=400, detail="Cannot re-trigger copywriting without analysis data.")
-        
-        await video_doc_ref.update({"status": "pending_copywriting_rerun", "status_message": "Re-running copywriting..."})
-        event_to_publish = ContentAnalysisComplete(
-            video_id=request.video_id,
-            video_title=video_title,
+            raise HTTPException(status_code=400, detail="Cannot re-trigger copywriting: content analysis not found.")
+        event = ContentAnalysisComplete(
+            video_id=video_id,
+            video_title=video_data.get("video_title"),
             structured_data=structured_data
         )
-    elif request.stage == "visuals":
-        structured_data = video_data.get("structured_data")
-        # The new architecture requires prompts to be in the structured data.
-        if not structured_data or not structured_data.get("image_prompts"):
-            raise HTTPException(status_code=400, detail="Cannot re-trigger visuals without image prompts from the analysis stage.")
+         # Clear out old copy data
+        await video_doc_ref.update({
+            "status": "pending_copywriting_rerun",
+            "status_message": "Re-triggering copywriting.",
+            "marketing_copy": firestore.DELETE_FIELD,
+            "substack_gcs_uri": firestore.DELETE_FIELD
+        })
 
-        await video_doc_ref.update({"status": "pending_visuals_rerun", "status_message": "Re-running visuals..."})
-        # The VisualsAgent is a "dumb" executor, so we fire the same event that the AnalysisAgent does.
-        event_to_publish = ContentAnalysisComplete(
-            video_id=request.video_id,
-            video_title=video_title,
-            structured_data=structured_data # This now correctly contains the prompts
+    elif stage == "visuals":
+        # We need the marketing copy
+        marketing_copy = video_data.get("marketing_copy")
+        if not marketing_copy:
+            raise HTTPException(status_code=400, detail="Cannot re-trigger visuals: marketing copy not found.")
+        event = CopyReady(
+            video_id=video_id,
+            video_title=video_data.get("video_title")
         )
+         # Clear out old visual data
+        await video_doc_ref.update({
+            "status": "pending_visuals_rerun",
+            "status_message": "Re-triggering visuals generation.",
+            "image_gcs_uris": firestore.DELETE_FIELD,
+            "on_demand_thumbnails": firestore.DELETE_FIELD
+        })
 
-    if event_to_publish:
-        await event_bus.publish(event_to_publish)
-        return JSONResponse(status_code=200, content={"message": f"Stage '{request.stage}' re-triggered."})
     else:
-        return JSONResponse(status_code=400, content={"message": f"Invalid stage '{request.stage}' provided."})
+        raise HTTPException(status_code=400, detail=f"Invalid stage '{stage}' specified for re-trigger.")
+
+    await event_bus.publish(event)
+    return JSONResponse(content={"message": f"Successfully re-triggered the '{stage}' stage."})
+
+async def delete_gcs_assets(video_data: dict, keep_video: bool = False):
+    """Helper function to delete GCS assets associated with a video."""
+    bucket_name = os.getenv("GCS_BUCKET_NAME")
+    if not bucket_name:
+        print("   ⚠️ Cannot delete GCS assets: GCS_BUCKET_NAME not set.")
+        return
+
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+
+    uris_to_delete = []
+    
+    # Add all GCS URIs from the document to the deletion list
+    for key, value in video_data.items():
+        if isinstance(value, str) and value.startswith(f"gs://{bucket_name}/"):
+            # If we're keeping the video, don't add its URI to the list
+            if keep_video and key in ["gcs_uri", "original_video_gcs_uri"]:
+                continue
+            uris_to_delete.append(value)
+            
+    # Also handle nested URIs, like in the 'on_demand_thumbnails'
+    if on_demand_thumbs := video_data.get("on_demand_thumbnails"):
+        for thumb in on_demand_thumbs:
+            if thumb_uri := thumb.get("gcs_uri"):
+                uris_to_delete.append(thumb_uri)
+
+    # Use a set to avoid deleting the same file multiple times
+    for uri in set(uris_to_delete):
+        try:
+            blob_path = uri.replace(f"gs://{bucket_name}/", "")
+            blob = bucket.blob(blob_path)
+            if await asyncio.to_thread(blob.exists):
+                await asyncio.to_thread(blob.delete)
+                print(f"   Deleted GCS asset: {blob.name}")
+        except Exception as e:
+            print(f"   Could not delete GCS asset from URI {uri}: {e}")
 
 @router.get("/api/videos")
 async def get_videos(current_user: dict = Depends(get_current_user)):
@@ -416,8 +519,27 @@ async def get_video(video_id: str):
     return {"video": video_data}
 
 @router.delete("/api/videos/{video_id}")
-async def delete_video(video_id: str):
-    pass
+async def delete_video(video_id: str, current_user: dict = Depends(get_current_user)):
+    """Deletes a video document and all its associated GCS assets."""
+    user_id = current_user.get("uid")
+    video_doc_ref = db.collection("videos").document(video_id)
+    doc = await video_doc_ref.get()
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    video_data = doc.to_dict()
+    if video_data.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="User not authorized to delete this video.")
+
+    # Delete all associated files in GCS
+    await delete_gcs_assets(video_data, keep_video=False) # Delete everything
+
+    # Delete the Firestore document
+    await video_doc_ref.delete()
+    print(f"Successfully deleted video {video_id} and all its assets.")
+    
+    return JSONResponse(status_code=200, content={"message": f"Successfully deleted video {video_id}."})
 
 # This is a duplicate and insecure endpoint. Removing it.
 # @router.post("/api/ingest")

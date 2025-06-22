@@ -8,6 +8,7 @@
   const dispatch = createEventDispatcher();
   let youtubeUrl = '';
   let busy = false;
+  let forceRestart = false;
 
   const STORAGE_KEY = 'youtubeUrl';
 
@@ -32,12 +33,31 @@
       const token = get(accessToken);
       if (!token) throw new Error('You must be signed in to submit a video.');
 
-      // No longer need to check if the video exists. The backend handles it.
-      const newId = await sendIngest(youtubeUrl, false); // force=false
+      // 2) Confirmation for Force Restart
+      if (forceRestart) {
+        const result = await Swal.fire({
+          title: 'Are you sure?',
+          text: "This will delete all existing data for this video. If the automated YouTube download fails, you may need to re-upload the file manually.",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Yes, restart from scratch!',
+          cancelButtonText: 'Cancel'
+        });
+
+        if (!result.isConfirmed) {
+          busy = false; // Unlock the UI
+          return; // Stop if the user cancels
+        }
+      }
+
+      const newId = await sendIngest(youtubeUrl, forceRestart);
       dispatch('new-ingestion', { videoId: newId });
 
-      // Clear the URL after a successful submission
+      // Clear the URL and reset the checkbox after a successful submission
       youtubeUrl = '';
+      forceRestart = false;
       localStorage.removeItem(STORAGE_KEY);
     }
     catch (err: any) {
@@ -70,12 +90,17 @@
   <button type="submit" disabled={busy} class="ingest-button">
     {#if busy}Processing…{:else}Go{/if}
   </button>
+  <label class="force-restart-label">
+      <input type="checkbox" bind:checked={forceRestart} />
+      Force Restart
+  </label>
 </form>
 
 <style>
   .ingest-form {
     display: flex;
-    gap: 0.5rem; /* 8px */
+    gap: 1rem;
+    align-items: center;
     width: 100%;
   }
 
@@ -84,12 +109,23 @@
     min-width: 0; /* Important for flexbox to allow shrinking */
     padding: 0.5rem;
     border-radius: 0.5rem;
-    margin-bottom: 0.5rem;
-    
-
+    margin-bottom: 0;
   }
 
   .ingest-button {
-    flex-shrink: 1; /* Prevent the button from shrinking */
+    flex-shrink: 0; /* Prevent the button from shrinking */
+  }
+
+  .force-restart-label {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    font-size: 0.9rem;
+    color: #4b5563;
+    cursor: pointer;
+  }
+
+  .force-restart-label input {
+    margin-right: 0.5rem;
   }
 </style>

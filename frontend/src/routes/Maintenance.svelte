@@ -8,6 +8,7 @@
   $: youtubeUrl = $videoStatus?.video_id ? 'https://youtu.be/' + $videoStatus.video_id : '';
   
   $: videoId = $videoStatus?.video_id;
+  $: videoTitle = $videoStatus?.video_title;
   $: thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : '';
 
   let selectedFile: File | null = null;
@@ -116,6 +117,9 @@
           <form on:submit|preventDefault={handleUpload} class="upload-form">
               {#if thumbnailUrl}
                 <div class="thumbnail-preview">
+                  {#if videoTitle}
+                    <h3 class="preview-title">{videoTitle}</h3>
+                  {/if}
                   <img src={thumbnailUrl} alt="YouTube Video Thumbnail" />
                 </div>
               {/if}
@@ -321,6 +325,13 @@
   .thumbnail-preview {
     margin-bottom: 1.5rem;
     text-align: center;
+  }
+
+  .preview-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--primary-color);
   }
 
   .thumbnail-preview img {

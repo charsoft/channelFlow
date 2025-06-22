@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, BackgroundTasks
 from google.cloud import storage, firestore
 import os
 import mimetypes
@@ -24,37 +24,18 @@ storage_client = storage.Client()
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 ALLOWED_MIME_TYPES = ["video/mp4", "video/quicktime", "video/x-m4v", "video/mov"]
 
-@router.post("/upload-video")
-async def upload_video(
-    youtube_url: str = Form(...), 
-    file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
-):
+async def process_manual_upload(youtube_url: str, file_contents: bytes, content_type: str, user_id: str):
     """
-    Allows manual upload of a video file to GCS. This is a workaround for when
-    YouTube's API prevents direct downloads.
+    This function contains the actual logic and is run in the background.
     """
-    # Step 1: Initial Validation
-    if not GCS_BUCKET_NAME:
-        raise HTTPException(status_code=500, detail="GCS_BUCKET_NAME is not configured.")
-
-    try:
-        video_id = get_video_id(youtube_url)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    if file.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed types are: {', '.join(ALLOWED_MIME_TYPES)}")
-
-    user_id = current_user.get("uid")
-
-    # Step 2: Pre-flight checks
+    video_id = get_video_id(youtube_url)
+    
+    # The logic from here is the same as the original endpoint
     video_doc_ref = db.collection("videos").document(video_id)
     doc = await video_doc_ref.get()
     video_title = ""
 
     if not doc.exists:
-        # If document doesn't exist, we must verify the video with YouTube's API
         try:
             cred_doc_ref = db.collection("user_credentials").document(user_id)
             cred_doc = await cred_doc_ref.get()
@@ -69,28 +50,28 @@ async def upload_video(
             video_response = youtube.videos().list(part="snippet", id=video_id).execute()
             
             if not video_response.get("items"):
-                raise HTTPException(status_code=404, detail="Could not find video on YouTube.")
+                # Can't raise HTTPException in background, so we print and exit
+                print(f"[BACKGROUND_ERROR] Could not find video on YouTube for video_id: {video_id}")
+                return
             video_title = video_response["items"][0]["snippet"]["title"]
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to verify video with YouTube API: {e}")
+            print(f"[BACKGROUND_ERROR] Failed to verify video with YouTube API: {e}")
+            return
     else:
         video_title = doc.to_dict().get("video_title", "Title not found")
 
-
-    # Step 3: GCS File Upload
-    gcs_blob_name = f"videos/{video_id}.mp4" # Standardize extension
+    gcs_blob_name = f"videos/{video_id}.mp4"
     bucket = storage_client.bucket(GCS_BUCKET_NAME)
     blob = bucket.blob(gcs_blob_name)
     gcs_uri = f"gs://{GCS_BUCKET_NAME}/{gcs_blob_name}"
 
     try:
-        contents = await file.read()
-        await asyncio.to_thread(blob.upload_from_string, contents, content_type=file.content_type)
-        print(f"Successfully uploaded {gcs_blob_name} to GCS.")
+        await asyncio.to_thread(blob.upload_from_string, file_contents, content_type=content_type)
+        print(f"Successfully uploaded {gcs_blob_name} to GCS in background.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to upload file to GCS: {e}")
+        print(f"[BACKGROUND_ERROR] Failed to upload file to GCS: {e}")
+        return
 
-    # Step 4: Database Commit
     video_data = {
         "video_id": video_id,
         "user_id": user_id,
@@ -105,21 +86,50 @@ async def upload_video(
     if not doc.exists:
         video_data["created_at"] = firestore.SERVER_TIMESTAMP
         await video_doc_ref.set(video_data)
-        print(f"Created new Firestore document for video {video_id}.")
     else:
         await video_doc_ref.update(video_data)
-        print(f"Updated existing Firestore document for video {video_id}.")
         
-    # Step 5: Trigger Workflow
-    # We need to import the event here to avoid circular dependencies at startup
     from ..events import IngestedVideo
-    event = IngestedVideo(
-        video_id=video_id,
-        gcs_uri=gcs_uri,
-        user_id=user_id,
-        video_title=video_title
-    )
+    event = IngestedVideo(video_id=video_id, gcs_uri=gcs_uri, user_id=user_id, video_title=video_title)
     await event_bus.publish(event)
-    print(f"Published IngestedVideo event for {video_id}.")
+    print(f"Published IngestedVideo event for {video_id} from background task.")
 
-    return {"message": "Video uploaded successfully and processing has started.", "video_id": video_id} 
+
+@router.post("/upload-video")
+async def upload_video(
+    background_tasks: BackgroundTasks,
+    youtube_url: str = Form(...), 
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Accepts a video upload and immediately returns a response while processing
+    the upload in the background.
+    """
+    if not GCS_BUCKET_NAME:
+        raise HTTPException(status_code=500, detail="GCS_BUCKET_NAME is not configured.")
+
+    try:
+        get_video_id(youtube_url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed types are: {', '.join(ALLOWED_MIME_TYPES)}")
+
+    user_id = current_user.get("uid")
+    
+    # Read file contents into memory once.
+    # This is necessary because the UploadFile object is not available in the background task.
+    file_contents = await file.read()
+    
+    # Add the long-running task to the background
+    background_tasks.add_task(
+        process_manual_upload,
+        youtube_url=youtube_url,
+        file_contents=file_contents,
+        content_type=file.content_type,
+        user_id=user_id
+    )
+
+    return {"message": "Video upload started in the background. Processing will begin shortly."} 
