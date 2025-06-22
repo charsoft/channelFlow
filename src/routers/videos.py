@@ -15,7 +15,7 @@ from googleapiclient.discovery import build
 
 from ..database import db
 from ..agents.ingestion import get_video_id
-from ..events import NewVideoDetected, TranscriptReady, ContentAnalysisComplete, CopyReady
+from ..events import NewVideoDetected, TranscriptReady, ContentAnalysisComplete, CopyReady, IngestedVideo
 from ..event_bus import event_bus
 from ..security import decrypt_data, encrypt_data
 from .auth import get_current_user, get_current_user_from_query
@@ -114,11 +114,22 @@ async def ingest_url(request: IngestUrlRequest, current_user: dict = Depends(get
         doc = await video_doc_ref.get()
 
         if doc.exists and not request.force:
-            print(f"Video {video_id} already exists. Returning existing video_id to trigger status stream.")
-            # The frontend will immediately connect to the SSE stream, which will
-            # send the latest status from the database. This avoids a separate
-            # code path on the client.
-            return JSONResponse(status_code=202, content={"message": "Video processing already in progress or complete.", "video_id": video_id})
+            print(f"Video {video_id} already exists. Returning full video data.")
+            video_data = serialize_firestore_doc(doc.to_dict())
+            video_data["video_id"] = doc.id
+            
+            if image_urls := video_data.get("image_urls"):
+                video_data["image_urls"] = [_get_signed_url(url) for url in image_urls if url]
+            
+            if on_demand_thumbs := video_data.get("on_demand_thumbnails"):
+                video_data["on_demand_thumbnails"] = [
+                    {**thumb, "image_url": _get_signed_url(thumb["image_url"])}
+                    for thumb in on_demand_thumbs if thumb.get("image_url")
+                ]
+            
+            print(json.dumps(video_data, indent=2))
+
+            return JSONResponse(status_code=200, content={"message": "Video already exists.", "video_id": video_id, "data": video_data, "status": "exists"})
 
         if doc.exists and request.force:
             print(f"Forcing reprocessing for video {video_id}. Deleting old data...")

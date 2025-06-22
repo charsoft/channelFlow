@@ -1,7 +1,21 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
     import { link } from 'svelte-spa-router';
     import logoUrl from '../assets/channel-flow-logo.png';
     import AuthButton from './AuthButton.svelte';
+
+    let googleClientId: string | null = null;
+
+    onMount(async () => {
+        try {
+            const res = await fetch('/api/config');
+            if (!res.ok) throw new Error('Failed to fetch API config');
+            const config = await res.json();
+            googleClientId = config.google_client_id;
+        } catch (error) {
+            console.error('Error fetching config in Header:', error);
+        }
+    });
 </script>
 
 <header class="app-header">
@@ -17,7 +31,11 @@
             <a href="/maintenance" use:link class="nav-link">Maintenance</a>
         </nav>
         <div class="auth-container">
-            <AuthButton />
+            {#if googleClientId}
+                <AuthButton clientId={googleClientId} />
+            {:else}
+                <div>Loading...</div>
+            {/if}
         </div>
     </div>
 </header>

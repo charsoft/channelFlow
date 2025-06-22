@@ -1,7 +1,7 @@
 import json
 import asyncio
 import google.generativeai as genai
-from google.cloud import storage
+from google.cloud import storage, firestore
 
 from ..event_bus import event_bus
 from ..events import ContentAnalysisComplete, CopyReady
@@ -24,7 +24,8 @@ class CopywriterAgent:
         """Helper to update status and message."""
         update = {
             "status": status,
-            "status_message": message
+            "status_message": message,
+            "updated_at": firestore.SERVER_TIMESTAMP
         }
         if extra_data:
             update.update(extra_data)
