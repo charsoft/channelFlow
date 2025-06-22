@@ -5,17 +5,24 @@
   import Swal from 'sweetalert2';
   import { accessToken } from '../lib/auth';
 
+  interface OnDemandThumbnail {
+    image_url: string;
+    prompt: string;
+    created_at: string;
+  }
+  
   interface Video {
     video_id: string;
     video_title: string;
     video_url: string;
     status: string;
+    status_message?: string;
     received_at?: string;
     substack_hook?: string;
     structured_data?: {
       summary?: string;
     };
-    thumbnails?: string[];
+    on_demand_thumbnails?: OnDemandThumbnail[];
   }
 
   let videos: Video[] = [];
@@ -66,11 +73,13 @@
     const status = video.status;
 
     // If visuals failed but user generated some manually, consider it a success.
-    if (status === 'visuals_failed' && video.thumbnails && video.thumbnails.length > 0) {
+    if (status === 'visuals_failed' && video.on_demand_thumbnails && video.on_demand_thumbnails.length > 0) {
       return { text: 'Visuals Generated', class: 'status-success' };
     }
     
-    const statusText = status.replace(/_/g, ' ');
+    const statusText = (video.status_message && video.status_message.length < 50) 
+      ? video.status_message 
+      : status.replace(/_/g, ' ');
 
     if (status.includes('failed')) return { text: statusText, class: 'status-failed' };
     if (status === 'published' || status.includes('completed') || status.includes('generated')) return { text: statusText, class: 'status-success' };
@@ -200,7 +209,7 @@
                 <a href={`#/video/${video.video_id}`} class="video-card">
                     <div class="card-thumbnail">
                         <img src={`https://img.youtube.com/vi/${video.video_id}/hqdefault.jpg`} alt="Video thumbnail">
-                        <span class="card-status {displayStatus.class}">
+                        <span class="card-status {displayStatus.class}" title={video.status_message}>
                             {displayStatus.text}
                         </span>
                     </div>
@@ -208,19 +217,27 @@
                         <h3 class="card-title">{video.video_title || 'Untitled Video'}</h3>
                         <p class="card-hook">{getHook(video)}</p>
                     </div>
-                    <div class="card-footer">
-                        <div class="footer-thumbnails">
-                            {#if video.thumbnails && video.thumbnails.length > 0}
-                                {#each video.thumbnails as thumbUrl}
-                                    <div class="footer-thumbnail" style="background-image: url({thumbUrl})"></div>
-                                {/each}
-                            {:else}
-                                <div class="footer-thumbnail-placeholder"></div>
-                                <div class="footer-thumbnail-placeholder"></div>
-                                <div class="footer-thumbnail-placeholder"></div>
-                                <div class="footer-thumbnail-placeholder"></div>
-                            {/if}
-                        </div>
+              <div class="card-footer">
+                          <div class="footer-thumbnails">
+    {#each (() => {
+      const combined = [
+        ...(video.image_urls || []).map(url => ({ image_url: url })),
+        ...(video.on_demand_thumbnails || [])
+      ];
+      return Array(4).fill(null).map((_, i) => combined[i] || null);
+    })() as thumb}
+      {#if thumb}
+        <div
+          class="footer-thumbnail"
+          style="background-image: url('{thumb.image_url}')"
+          title={thumb.prompt || ''}
+        ></div>
+      {:else}
+        <div class="footer-thumbnail-placeholder"></div>
+      {/if}
+    {/each}
+  </div>
+                        
                         <div class="footer-meta">
                             <span class="processed-date">
                                 Processed: {video.received_at ? new Date(video.received_at).toLocaleDateString() : 'Not available'}
@@ -306,14 +323,18 @@
 
     .card-status {
         position: absolute;
-        top: 0.75rem;
-        right: 0.75rem;
-        padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        font-size: 0.8rem;
-        font-weight: 600;
+        top: 8px;
+        right: 8px;
+        background-color: rgba(0, 0, 0, 0.7);
         color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
         text-transform: capitalize;
+        z-index: 2;
+        /* Add for hover */
+        cursor: help;
     }
 
     .status-success { background-color: #16a34a; }
@@ -354,15 +375,22 @@
 
     .footer-thumbnail {
         width: 25%;
-        padding-top: 25%;
+        padding-bottom: 25%; /* Creates a square aspect ratio */
         background-size: cover;
         background-position: center;
-        border-radius: 0.375rem;
+        background-color: #334155;
+        border-radius: 4px;
+        transition: transform 0.2s ease-in-out;
+    }
+
+    .footer-thumbnail:hover {
+        transform: scale(1.1);
+        z-index: 10;
     }
 
     .footer-thumbnail-placeholder {
         width: 25%;
-        padding-top: 25%;
+        padding-bottom: 25%;
         background-color: #e2e8f0;
         border-radius: 0.375rem;
     }
