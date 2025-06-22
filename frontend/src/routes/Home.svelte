@@ -14,7 +14,7 @@
 
 
   let youtubeConnectionStatus: { isConnected: boolean, email?: string } = { isConnected: false };
-  let isRestartMode = false;
+  let isRestartMode = true;
   let currentVideoId: string | null = null;
   let hasHandledFirstStatus = false;
   $: currentVideoId = $videoStatus?.video_id ?? null;
@@ -222,14 +222,14 @@
     };
   });
 
-  // --- DEBUG LOGGING: STAGES ARRAY ---
-  $: if (stages && stages.length > 0) {
-    console.log('[Home.svelte] Calculated stages array:', JSON.parse(JSON.stringify(stages)));
-  } else {
-    console.log('[Home.svelte] Debug: `stages` array is either not defined or empty.', stages);
-  }
+ // --- DEBUG LOGGING: STAGES ARRAY ---
+///  $: if (stages && stages.length > 0) {
+ //   console.log('[Home.svelte] Calculated stages array:', JSON.parse(JSON.stringify(stages)));
+ // } else {
+ //   console.log('[Home.svelte] Debug: `stages` array is either not defined or empty.', stages);
+ // }
 </script>
-
+ 
 {#if $accessToken}
   <div class="home-container">
     <div class="content-column">
@@ -260,13 +260,7 @@
          </div>
        {/if}
      </p>
-    </div>
-    <p style="color:blue">DEBUG: $videoStatus = {JSON.stringify($videoStatus)}</p>
-  </div>
-{/if}
-{#if $videoStatus}
-  ...
-
+     
       {#if $videoStatus}
         <div class="processing-section">
           <div class="workflow-controls">
@@ -287,14 +281,14 @@
             stagesMetadata={agentDetails}
             on:retrigger={handleRetrigger}
           />
-
           <StatusLog />
         </div>
-         {/if}
-      
+      {/if}
+    </div>
+   <!-- <p style="color:blue">DEBUG: $videoStatus = {JSON.stringify($videoStatus)}</p> -->
+  </div>
 {:else}
-
-<div class="home-container" style="padding-bottom: 0; min-height: 0;">
+  <div class="home-container" style="padding-bottom: 0; min-height: 0;">
     <div class="content-column" style="min-height: initial; text-align: center;">
         <h1 class="mb-2">Amplify your message.</h1>
         <p class="mb-4">

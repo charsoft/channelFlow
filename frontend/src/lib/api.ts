@@ -90,9 +90,13 @@ export async function retriggerStage(videoId: string, stage: string): Promise<vo
     headers: await getHeaders(),
     body: JSON.stringify({ video_id: videoId, stage: stage.toLowerCase() })
   });
+  
+  const responseBody = await res.json().catch(() => ({})); // Gracefully handle non-JSON responses
+
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || `Failed to re-trigger stage ${stage}`);
+    // Use the specific 'detail' or 'message' from the backend, or fall back to a generic message
+    const errorMessage = responseBody.detail || responseBody.message || `Failed to re-trigger stage '${stage}'. (Status: ${res.status})`;
+    throw new Error(errorMessage);
   }
 }
 
