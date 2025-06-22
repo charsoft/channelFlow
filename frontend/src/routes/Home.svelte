@@ -258,8 +258,9 @@
 <style>
   .home-container {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     padding: 2rem;
+    
   }
 
   .content-column {

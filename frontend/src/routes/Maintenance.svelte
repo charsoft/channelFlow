@@ -1,7 +1,7 @@
 <script lang="ts">
   import Swal from 'sweetalert2';
   import { accessToken } from '../lib/auth';
-  import { push } from 'svelte-spa-router';
+  import { push, link } from 'svelte-spa-router';
 
   let youtubeUrl = '';
   let selectedFile: File | null = null;
@@ -96,9 +96,81 @@
 
 </script>
 
+{#if $accessToken}
+  <div class="maintenance-container">
+      <h1>Maintenance Tools</h1>
+
+      <div class="tool-section">
+          <h2>Manual Video Upload</h2>
+          <p>
+              This tool allows you to manually upload a video file and associate it with a YouTube URL.
+              This is a workaround for cases where the automated download from YouTube fails.
+              The system will use your uploaded file instead of trying to download it.
+          </p>
+          <form on:submit|preventDefault={handleUpload} class="upload-form">
+              <div class="form-group">
+                  <label for="youtube-url">YouTube Video URL</label>
+                  <input type="url" id="youtube-url" bind:value={youtubeUrl} placeholder="https://www.youtube.com/watch?v=..." required>
+              </div>
+              <div class="form-group">
+                  <label for="video-file">Video File (.mp4, .mov)</label>
+                  <input type="file" id="video-file" bind:this={fileInput} on:change={(e) => selectedFile = e.currentTarget.files ? e.currentTarget.files[0] : null} accept="video/mp4,video/quicktime,video/x-m4v,video/mov" required>
+              </div>
+              <button type="submit" class="button-primary" disabled={isUploading}>
+                  {#if isUploading}
+                      <div class="spinner"></div>
+                      <span>Uploading...</span>
+                  {:else}
+                      Upload and Process
+                  {/if}
+              </button>
+          </form>
+      </div>
+
+      <div class="tool-section">
+          <h2>Orphan Cleanup</h2>
+          <p>
+              This tool scans for and removes orphaned Firestore documents and their corresponding Cloud Storage files.
+              An orphan is a record that was created but failed early in the ingestion process, leaving it in an incomplete state.
+          </p>
+          <button on:click={handleCleanup} class="button-danger" disabled={isCleaning}>
+               {#if isCleaning}
+                  <div class="spinner"></div>
+                  <span>Cleaning...</span>
+              {:else}
+                  Run Cleanup
+              {/if}
+          </button>
+      </div>
+  </div>
+{:else}
+  <div class="unauthorized-container">
+    <h2>Access Denied</h2>
+    <p>Please log in to access ChannelFlow.</p>
+    <a href="/" use:link class="button-primary">Go to Home</a>
+  </div>
+{/if}
+
 <style>
+  .unauthorized-container {
+    text-align: center;
+    max-width: 100%;
+    min-height: 90vh;
+    margin: 4rem auto;
+    padding: 2rem;
+    background-color: var(--background-color-light);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
+  .unauthorized-container h2 {
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+    color: var(--danger-color);
+  }
+
   .maintenance-container {
     max-width: 800px;
+    min-height: 90vh;
     margin: 2rem auto;
     padding: 2rem;
     background-color: var(--background-color-light);
@@ -225,50 +297,3 @@
   }
 
 </style>
-
-<div class="maintenance-container">
-    <h1>Maintenance Tools</h1>
-
-    <div class="tool-section">
-        <h2>Manual Video Upload</h2>
-        <p>
-            This tool allows you to manually upload a video file and associate it with a YouTube URL.
-            This is a workaround for cases where the automated download from YouTube fails.
-            The system will use your uploaded file instead of trying to download it.
-        </p>
-        <form on:submit|preventDefault={handleUpload} class="upload-form">
-            <div class="form-group">
-                <label for="youtube-url">YouTube Video URL</label>
-                <input type="url" id="youtube-url" bind:value={youtubeUrl} placeholder="https://www.youtube.com/watch?v=..." required>
-            </div>
-            <div class="form-group">
-                <label for="video-file">Video File (.mp4, .mov)</label>
-                <input type="file" id="video-file" bind:this={fileInput} on:change={(e) => selectedFile = e.currentTarget.files ? e.currentTarget.files[0] : null} accept="video/mp4,video/quicktime,video/x-m4v,video/mov" required>
-            </div>
-            <button type="submit" class="button-primary" disabled={isUploading}>
-                {#if isUploading}
-                    <div class="spinner"></div>
-                    <span>Uploading...</span>
-                {:else}
-                    Upload and Process
-                {/if}
-            </button>
-        </form>
-    </div>
-
-    <div class="tool-section">
-        <h2>Orphan Cleanup</h2>
-        <p>
-            This tool scans for and removes orphaned Firestore documents and their corresponding Cloud Storage files.
-            An orphan is a record that was created but failed early in the ingestion process, leaving it in an incomplete state.
-        </p>
-        <button on:click={handleCleanup} class="button-danger" disabled={isCleaning}>
-             {#if isCleaning}
-                <div class="spinner"></div>
-                <span>Cleaning...</span>
-            {:else}
-                Run Cleanup
-            {/if}
-        </button>
-    </div>
-</div>

@@ -2,6 +2,19 @@
   export let showTitle = true;
 </script>
 
+<div class="intro-section">
+  <div class="intro-content">
+      <h2>Meet your agents.</h2>
+      <p>
+          Our system is designed to take that single video source and propagate its message intelligently across all your digital 'channels.' Our branding reflects this: 'From Source to Stream,' visualizing a single flow branching into multiple, wider rivers of content.
+      </p>
+  </div>
+  <div class="intro-image">
+      <img src="/agent-development-kit.png" alt="ChannelFlow Agent Mascot" />
+      <p class="image-caption">Powered by Google ADK and Optimized by Google Cloud.</p>
+  </div>
+</div>
+
 <div class="flow-container">
     {#if showTitle}
       <header>
@@ -98,9 +111,53 @@
 </div>
 
 <style>
+    .intro-section {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      background-color: var(--background-color-light);
+      padding: 3rem 2rem;
+      border-radius: 0.75rem;
+      max-width: 900px;
+      margin: 2rem auto;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+      border: 1px solid var(--border-color);
+    }
+    .intro-content {
+      flex: 2;
+    }
+    .intro-content h2 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #1e293b;
+      margin-bottom: 1rem;
+    }
+    .intro-content p {
+      font-size: 1rem;
+      color: #4b5563;
+      line-height: 1.6;
+    }
+    .intro-image {
+      flex: 1;
+      max-width: 250px;
+      text-align: center;
+    }
+    .intro-image img {
+      width: 100%;
+      height: auto;
+      border-radius: 0.5rem;
+    }
+    .image-caption {
+      font-size: 0.8rem;
+      font-style: italic;
+      color: #64748b;
+      margin-top: 1rem;
+    }
+
     .flow-container {
         max-width: 900px;
         margin: 0 auto;
+        min-height: 90vh;
         padding: 2rem;
         font-family: 'Inter', sans-serif;
         background-color: #fff;
