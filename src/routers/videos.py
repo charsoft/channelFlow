@@ -533,6 +533,24 @@ async def get_video(video_id: str):
     if substack_uri := video_data.get("substack_gcs_uri"):
         video_data["substack_url"] = _get_signed_url(substack_uri)
 
+    # Process generated_thumbnails
+    if thumbnails := video_data.get("structured_data", {}).get("generated_thumbnails"):
+        for thumb in thumbnails:
+            if gcs_uri := thumb.get("gcs_uri"):
+                thumb["image_url"] = _get_signed_url(gcs_uri)
+
+    # Process quote_visuals
+    if visuals := video_data.get("structured_data", {}).get("quote_visuals"):
+        for visual in visuals:
+            if gcs_uri := visual.get("gcs_uri"):
+                visual["image_url"] = _get_signed_url(gcs_uri)
+
+    # Process on_demand_thumbnails
+    if on_demand := video_data.get("structured_data", {}).get("on_demand_thumbnails"):
+        for thumb in on_demand:
+            if gcs_uri := thumb.get("gcs_uri"):
+                thumb["image_url"] = _get_signed_url(gcs_uri)
+    
     return JSONResponse(status_code=200, content={"video": video_data})
 
 @router.delete("/api/videos/{video_id}")

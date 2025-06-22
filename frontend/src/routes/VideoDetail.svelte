@@ -13,6 +13,8 @@
   import GeneratedImages from '../components/GeneratedImages.svelte'; // <-- ADD THIS LINE
   import ShortsCandidates from '../components/ShortsCandidates.svelte';
   import WorkflowManager from '../components/WorkflowManager.svelte';
+  import Tabs from '../components/Tabs.svelte';
+  import Tab from '../components/Tab.svelte';
 
   export let params: { id?: string } = {};
 
@@ -28,7 +30,7 @@
   
   let newsletterPreImageHtml = '';
   let newsletterPostImageHtml = '';
-  let availableImages: any[] = [];
+  let availableImages: string[] = [];
   let isImageSelectorVisible = false;
   let selectedNewsletterImage = '';
   let isWorkflowVisible = true; // New state for collapsibility
@@ -70,13 +72,17 @@
 
   $: {
     if (activeTab === 'copy' && videoData) {
-        availableImages = [...(videoData.image_urls || []), ...(videoData.on_demand_thumbnails || []).map((t: any) => t.image_url)];
+        availableImages = [
+            ...(videoData.structured_data?.generated_thumbnails || []),
+            ...(videoData.structured_data?.quote_visuals || []),
+            ...(videoData.structured_data?.on_demand_thumbnails || [])
+        ].map(t => t.image_url).filter(Boolean);
 
         if(videoData.marketing_copy?.email_newsletter) {
             let markdownBody = '';
-            if (typeof videoData.marketing_copy.email_newsletter === 'object') {
+            if (typeof videoData.marketing_copy.email_newsletter === 'object' && videoData.marketing_copy.email_newsletter.body) {
                 markdownBody = videoData.marketing_copy.email_newsletter.body;
-            } else {
+            } else if (typeof videoData.marketing_copy.email_newsletter === 'string') {
                 markdownBody = videoData.marketing_copy.email_newsletter;
             }
 
@@ -169,8 +175,35 @@
     }
   }
 
+  async function handleRetrigger(event: CustomEvent<{ stage: string }>) {
+    const stageToRestart = event.detail.stage;
+    if (!params.id) {
+        Swal.fire('Error', 'Cannot re-trigger: Video ID is missing.', 'error');
+        return;
+    }
+
+    try {
+        await retriggerStage(params.id, stageToRestart);
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: `'${stageToRestart}' stage has been successfully restarted.`,
+            showConfirmButton: false,
+            timer: 3000
+        });
+    } catch (error: any) {
+        Swal.fire('Error', `Failed to restart stage: ${error.message}`, 'error');
+    }
+  }
+
   function handleTabChange(e: any) {
     activeTab = e.detail.id;
+  }
+
+  function selectImageForNewsletter(imageUrl: string) {
+    selectedNewsletterImage = imageUrl;
+    isImageSelectorVisible = false;
   }
 
 </script>
@@ -204,128 +237,117 @@
             </button>
         </div>
         {#if isWorkflowVisible}
-            <WorkflowManager
-              stages={videoData.stages}
-            />
+            <WorkflowManager video={videoData} stagesMetadata={stagesMetadata} on:retrigger={handleRetrigger} />
         {/if}
     </div>
 
     <!-- Tabs for different sections -->
-    <div class="tabs">
-        <button class="tab-button" class:active={activeTab === 'overview'} on:click={() => activeTab = 'overview'}>Overview</button>
-        <button class="tab-button" class:active={activeTab === 'images'} on:click={() => activeTab = 'images'}>Generated Images</button>
-        <button class="tab-button" class:active={activeTab === 'copy'} on:click={() => activeTab = 'copy'}>Generated Copy</button>
-        <button class="tab-button" class:active={activeTab === 'shorts'} on:click={() => activeTab = 'shorts'}>Shorts Candidates</button>
-    </div>
-
-    <!-- Tab Content Panels -->
-    {#if activeTab === 'overview'}
-    <div class="tab-content active">
-        <div class="overview-grid">
-             <div class="video-player-wrapper">
-                <iframe
-                    class="youtube-iframe"
-                    src={`https://www.youtube.com/embed/${videoData.video_id}`}
-                    title="YouTube video player"
-                    frameborder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowfullscreen
-                ></iframe>
+    <Tabs bind:activeTabId={activeTab}>
+        <Tab id="overview" title="Overview">
+          <div class="tab-content active">
+            <div class="overview-grid">
+                 <div class="video-player-wrapper">
+                    <iframe
+                        class="youtube-iframe"
+                        src={`https://www.youtube.com/embed/${videoData.video_id}`}
+                        title="YouTube video player"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen
+                    ></iframe>
+                </div>
+                {#if videoData.structured_data?.summary}
+                <div class="detail-section" id="summary-section">
+                    <h2>Summary</h2>
+                    <p>{videoData.structured_data.summary}</p>
+                </div>
+                {/if}
             </div>
-            {#if videoData.structured_data?.summary}
-            <div class="detail-section" id="summary-section">
-                <h2>Summary</h2>
-                <p>{videoData.structured_data.summary}</p>
+          </div>
+        </Tab>
+        <Tab id="images" title="Generated Images">
+          <GeneratedImages
+            videoId={params.id}
+            videoTitle={videoData.video_title || 'Untitled Video'}
+            generatedThumbnails={videoData.structured_data?.generated_thumbnails || []}
+            onDemandThumbnails={videoData.structured_data?.on_demand_thumbnails || []}
+            facebookPost={videoData.marketing_copy?.facebook_post || ''}
+            on:newOnDemandImage={handleNewOnDemandImage}
+            on:showImageModal={showImageModal}
+          />
+        </Tab>
+        <Tab id="copy" title="Generated Copy">
+          <div class="tab-content active">
+            {#if videoData.marketing_copy}
+            <div class="detail-section">
+                <h2>Generated Copy</h2>
+                <div class="copy-assets">
+                    {#if videoData.marketing_copy.facebook_post}
+                    <div class="copy-asset-card">
+                        <h4>Facebook / Instagram Post</h4>
+                        <div class="copy-text">{@html videoData.marketing_copy.facebook_post}</div>
+                    </div>
+                    {/if}
+                     {#if videoData.marketing_copy.email_newsletter}
+                     <div class="copy-asset-card">
+                        <h4>Email Newsletter</h4>
+                        {#if typeof videoData.marketing_copy.email_newsletter === 'object'}
+                            <h5 class="newsletter-subject">{videoData.marketing_copy.email_newsletter.subject}</h5>
+                        {/if}
+                        <div class="copy-text newsletter-container">
+                            {@html newsletterPreImageHtml}
+                            
+                            {#if selectedNewsletterImage}
+                                <img src={selectedNewsletterImage} alt="Selected newsletter visual" class="newsletter-image">
+                            {:else if availableImages.length > 0}
+                                <div class="image-placeholder">
+                                    <button class="button-secondary" on:click={() => isImageSelectorVisible = true}>
+                                        Select an Image
+                                    </button>
+                                </div>
+                            {/if}
+    
+                            {@html newsletterPostImageHtml}
+                         </div>
+                     </div>
+                     {/if}
+                </div>
             </div>
             {/if}
-        </div>
-    </div>
-    {/if}
     
-    {#if activeTab === 'images'}
-        <GeneratedImages
-          videoId={params.id}
-          videoTitle={videoData.title}
-          generatedThumbnails={videoData.structured_data?.generated_thumbnails || []}
-          onDemandThumbnails={videoData.structured_data?.on_demand_thumbnails || []}
-          facebookPost={videoData.structured_data?.facebook_post || ''}
-          on:newOnDemandImage={handleNewOnDemandImage}
-          on:showImageModal={showImageModal}
-        />
-    {/if}
-
-    {#if activeTab === 'copy'}
-    <div class="tab-content active">
-        {#if videoData.marketing_copy}
-        <div class="detail-section">
-            <h2>Generated Copy</h2>
-            <div class="copy-assets">
-                {#if videoData.marketing_copy.facebook_post}
-                <div class="copy-asset-card">
-                    <h4>Facebook / Instagram Post</h4>
-                    <div class="copy-text">{@html videoData.marketing_copy.facebook_post}</div>
-                </div>
-                {/if}
-                 {#if videoData.marketing_copy.email_newsletter}
-                 <div class="copy-asset-card">
-                    <h4>Email Newsletter</h4>
-                    {#if typeof videoData.marketing_copy.email_newsletter === 'object'}
-                        <h5 class="newsletter-subject">{videoData.marketing_copy.email_newsletter.subject}</h5>
+            {#if videoData.substack_gcs_uri}
+             <div class="detail-section">
+                <h2>Substack Article</h2>
+                <div class="substack-preview">
+                    {#if isLoadingSubstack}
+                        <div class="loader-small"></div>
+                    {:else if substackHtml}
+                        <div class="copy-text">
+                            {@html substackHtml}
+                        </div>
                     {/if}
-                    <div class="copy-text newsletter-container">
-                        {@html newsletterPreImageHtml}
-                        
-                        {#if selectedNewsletterImage}
-                            <img src={selectedNewsletterImage} alt="Selected newsletter visual" class="newsletter-image">
-                        {:else if availableImages.length > 0}
-                            <div class="image-placeholder">
-                                <button class="button-secondary" on:click={() => isImageSelectorVisible = true}>
-                                    Select an Image
-                                </button>
-                            </div>
-                        {/if}
-
-                        {@html newsletterPostImageHtml}
-                    </div>
                 </div>
-                {/if}
-            </div>
+                <a href={videoData.substack_gcs_uri.replace("gs://", "https://storage.googleapis.com/")} class="button-link" download>
+                    Download Formatted Article
+                </a>
+             </div>
+            {/if}
+    
+            {#if !videoData.marketing_copy && !videoData.substack_gcs_uri}
+                <div class="detail-section">
+                    <p>No generated copy is available for this video yet.</p>
+                </div>
+            {/if}
         </div>
-        {/if}
-
-        {#if videoData.substack_gcs_uri}
-         <div class="detail-section">
-            <h2>Substack Article</h2>
-            <div class="substack-preview">
-                {#if isLoadingSubstack}
-                    <div class="loader-small"></div>
-                {:else if substackHtml}
-                    <div class="copy-text">
-                        {@html substackHtml}
-                    </div>
-                {/if}
-            </div>
-            <a href={videoData.substack_gcs_uri.replace("gs://", "https://storage.googleapis.com/")} class="button-link" download>
-                Download Formatted Article
-            </a>
+        </Tab>
+        <Tab id="shorts" title="Shorts Candidates">
+          <div class="tab-content active">
+             <!-- Shorts content will go here -->
+            <ShortsCandidates videoId={videoData.video_id} candidates={videoData.structured_data?.shorts_candidates || []} />
          </div>
-        {/if}
-
-        {#if !videoData.marketing_copy && !videoData.substack_gcs_uri}
-            <div class="detail-section">
-                <p>No generated copy is available for this video yet.</p>
-            </div>
-        {/if}
-    </div>
-    {/if}
-
-    {#if activeTab === 'shorts'}
-    <div class="tab-content active">
-         <!-- Shorts content will go here -->
-        <ShortsCandidates videoId={videoData.video_id} candidates={videoData.structured_data?.shorts_candidates || []} />
-    </div>
-    {/if}
-</div>
+        </Tab>
+    </Tabs>
+  </div>
 {/if}
 
 <!-- Image Modal -->
@@ -333,6 +355,27 @@
 <div class="modal-overlay" role="dialog" aria-modal="true" on:click={() => isImageModalVisible = false}>
     <button type="button" class="modal-close-button" on:click={() => isImageModalVisible = false}>&times;</button>
     <img class="modal-content-image" src={modalImageUrl} alt="Full size generated visual">
+</div>
+{/if}
+
+<!-- Image Selector Modal -->
+{#if isImageSelectorVisible}
+<div class="modal-overlay" role="dialog" aria-modal="true" on:click={() => isImageSelectorVisible = false}>
+    <div class="modal-content" role="document" on:click|stopPropagation>
+        <div class="modal-header">
+            <h3>Select an Image</h3>
+            <button type="button" class="modal-close-button" on:click={() => isImageSelectorVisible = false}>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="thumbnails-grid">
+                 {#each availableImages as imageUrl}
+                    <button class="thumbnail-selector" on:click={() => selectImageForNewsletter(imageUrl)}>
+                        <img src={imageUrl} alt="Selectable thumbnail">
+                    </button>
+                 {/each}
+            </div>
+        </div>
+    </div>
 </div>
 {/if}
 
