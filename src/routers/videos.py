@@ -1,9 +1,11 @@
 import asyncio
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+import tempfile
+import uuid
 
-from fastapi import APIRouter, Depends, Request, HTTPException, status
+from fastapi import APIRouter, Depends, Request, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
@@ -16,7 +18,9 @@ from ..agents.ingestion import get_video_id
 from ..events import NewVideoDetected, TranscriptReady, ContentAnalysisComplete, CopyReady
 from ..event_bus import event_bus
 from ..security import decrypt_data, encrypt_data
-from .auth import get_current_user
+from .auth import get_current_user, get_current_user_from_query
+from ..video_processing import create_vertical_clip
+from ..agents.visuals import VisualsAgent
 
 router = APIRouter()
 
@@ -24,21 +28,30 @@ router = APIRouter()
 storage_client = storage.Client()
 bucket_name = os.environ.get("GCS_BUCKET_NAME")
 
-def serialize_firestore_doc(doc_dict):
+def serialize_firestore_doc(doc):
     """
-    Recursively iterates through a dictionary and converts Firestore-specific
-    or other datetime-like objects to JSON-serializable formats.
+    Recursively converts Firestore-specific types in a document to JSON-serializable formats.
+    This version uses duck-typing to avoid brittle internal imports.
     """
+    if doc is None:
+        return None
+
     def convert(value):
-        if hasattr(value, "isoformat"):  # Handles datetime, DatetimeWithNanoseconds
+        # Check for Firestore's DatetimeWithNanoseconds by checking for a unique method
+        if hasattr(value, 'to_datetime'):
+            return value.to_datetime().isoformat()
+        # Handle standard Python datetime objects
+        if isinstance(value, datetime):
             return value.isoformat()
-        elif isinstance(value, dict):
+        # Recurse into dicts and lists
+        if isinstance(value, dict):
             return {k: convert(v) for k, v in value.items()}
-        elif isinstance(value, list):
-            return [convert(v) for v in value]
-        else:
-            return value
-    return {k: convert(v) for k, v in doc_dict.items()}
+        if isinstance(value, list):
+            return [convert(item) for item in value]
+        # Return all other types as-is
+        return value
+
+    return convert(doc)
 
 def _get_signed_url(gcs_uri: str) -> str:
     """Converts a GCS URI to a signed URL."""
@@ -202,40 +215,63 @@ async def get_status(video_id: str):
     return JSONResponse(status_code=200, content={"data": data})
 
 @router.get("/api/stream-status/{video_id}")
-async def stream_status(request: Request, video_id: str):
+async def stream_status(request: Request, video_id: str, token: str):
     async def event_generator():
-        last_known_status = None
         try:
+            # First, authenticate the user from the token.
+            current_user = await get_current_user_from_query(token)
+
+            # Then, perform the authorization check.
+            video_doc_ref = db.collection("videos").document(video_id)
+            doc = await video_doc_ref.get()
+
+            if not doc.exists:
+                yield { "event": "message", "data": json.dumps({"status": "not_found", "message": "Video not found."})}
+                return
+            
+            video_data = doc.to_dict()
+            if video_data.get("user_id") != current_user.get("uid"):
+                yield { "event": "error", "data": json.dumps({"status": "error", "message": "Unauthorized."})}
+                return
+
+            # If we've gotten this far, user is auth'd and auth'z. Start the stream.
             while True:
                 if await request.is_disconnected():
                     print(f"Client disconnected from {video_id} stream.")
                     break
 
-                video_doc_ref = db.collection("videos").document(video_id)
-                doc = await video_doc_ref.get()
+                # We can re-fetch the document in the loop to get live updates
+                doc_snapshot = await video_doc_ref.get()
 
-                if not doc.exists:
+                if not doc_snapshot.exists:
                     yield { "event": "message", "data": json.dumps({"status": "not_found", "message": "Video not found."})}
                     break
                 
-                data = serialize_firestore_doc(doc.to_dict())
-                current_status = data.get("status")
-
-                if current_status != last_known_status:
-                    yield { "event": "message", "data": json.dumps(data) }
-                    last_known_status = current_status
+                # FIX: Always send the latest data. The frontend can decide what to do with it.
+                # This ensures that when a client connects, it immediately gets the
+                # current state, and it prevents the connection from closing due to inactivity.
+                data = serialize_firestore_doc(doc_snapshot.to_dict())
                 
-                await asyncio.sleep(1)
+                yield { "event": "message", "data": json.dumps(data) }
+                
+                # We can increase the sleep time slightly to reduce the frequency of reads
+                await asyncio.sleep(2)
 
+        except HTTPException as e:
+            # Catch auth exceptions and send a proper SSE error
+            yield { "event": "error", "data": json.dumps({"status": "error", "message": e.detail or "Authentication failed" }) }
         except Exception as e:
             print(f"Error in SSE stream for {video_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            yield { "event": "error", "data": json.dumps({"status": "error", "message": "An internal error occurred on the stream."}) }
         finally:
             print(f"Closing SSE stream for {video_id}.")
 
     return EventSourceResponse(event_generator())
 
 @router.post("/api/re-trigger")
-async def re_trigger(request: RetriggerRequest):
+async def re_trigger(request: RetriggerRequest, current_user: dict = Depends(get_current_user)):
     video_doc_ref = db.collection("videos").document(request.video_id)
     doc = await video_doc_ref.get()
 
@@ -248,14 +284,9 @@ async def re_trigger(request: RetriggerRequest):
     
     event_to_publish = None
     if request.stage == "ingestion":
-        if not user_id:
-            return JSONResponse(status_code=400, content={"message": "Cannot re-trigger ingestion without a user_id."})
-        # Note: This effectively restarts the entire process.
-        # We need to clean up old data first, just like in the /ingest-url endpoint.
-        print(f"Force re-ingesting for video {request.video_id} by user request.")
-        # This part is complex, involving GCS file deletion. For now, we will just re-trigger the event.
-        # A more robust solution would be to call a shared cleanup function.
-        await video_doc_ref.update({"status": "re-triggering ingestion", "status_message": "Restarting process from the beginning."})
+        # Note: This is a destructive action and should be used with care.
+        # It's simplified here for brevity. A real implementation would have more safeguards.
+        await video_doc_ref.update({"status": "re-triggering ingestion", "status_message": "Re-starting process from the beginning."})
         event_to_publish = NewVideoDetected(
             video_id=request.video_id,
             video_url=video_data.get("video_url"),
@@ -263,43 +294,47 @@ async def re_trigger(request: RetriggerRequest):
             user_id=user_id
         )
     elif request.stage == "transcription":
-        if not user_id:
-            return JSONResponse(status_code=400, content={"message": "Cannot re-trigger transcription without a user_id."})
-        await video_doc_ref.update({"status": "re-triggering transcription"})
-        # This assumes the video is already downloaded and is just re-running the transcription model.
-        # Currently, the `NewVideoDetected` event is the only way to trigger transcription.
-        # This is a bit of a misnomer, but it's how the system is wired.
-        event_to_publish = NewVideoDetected(
+        # Re-running transcription starts from the very beginning of that phase.
+        await video_doc_ref.update({"status": "pending_transcription_rerun", "status_message": "Re-running transcription..."})
+        event_to_publish = IngestedVideo(
             video_id=request.video_id,
-            video_url=video_data.get("video_url"),
+            gcs_uri=video_data.get("original_video_gcs_uri"), # The Ingestion agent needs the location of the video file
             video_title=video_title,
             user_id=user_id
         )
     elif request.stage == "analysis":
+        transcript_gcs_uri = video_data.get("transcript_gcs_uri")
         await video_doc_ref.update({"status": "re-triggering analysis"})
         event_to_publish = TranscriptReady(
             video_id=request.video_id,
             video_title=video_title,
-            transcript_gcs_uri=video_data.get("transcript_gcs_uri"),
-            user_id=user_id
+            transcript_gcs_uri=transcript_gcs_uri
         )
     elif request.stage == "copywriting":
-        await video_doc_ref.update({"status": "re-triggering copywriting"})
+        structured_data = video_data.get("structured_data")
+        if not structured_data:
+            raise HTTPException(status_code=400, detail="Cannot re-trigger copywriting without analysis data.")
+        
+        await video_doc_ref.update({"status": "pending_copywriting_rerun", "status_message": "Re-running copywriting..."})
         event_to_publish = ContentAnalysisComplete(
             video_id=request.video_id,
             video_title=video_title,
-            structured_data=video_data.get("structured_data"),
-            user_id=user_id
+            structured_data=structured_data
         )
     elif request.stage == "visuals":
-        await video_doc_ref.update({"status": "re-triggering visuals"})
-        event_to_publish = CopyReady(
+        structured_data = video_data.get("structured_data")
+        # The new architecture requires prompts to be in the structured data.
+        if not structured_data or not structured_data.get("image_prompts"):
+            raise HTTPException(status_code=400, detail="Cannot re-trigger visuals without image prompts from the analysis stage.")
+
+        await video_doc_ref.update({"status": "pending_visuals_rerun", "status_message": "Re-running visuals..."})
+        # The VisualsAgent is a "dumb" executor, so we fire the same event that the AnalysisAgent does.
+        event_to_publish = ContentAnalysisComplete(
             video_id=request.video_id,
             video_title=video_title,
-            copy_gcs_uri=video_data.get("substack_gcs_uri"),
-            user_id=user_id
+            structured_data=structured_data # This now correctly contains the prompts
         )
-        
+
     if event_to_publish:
         await event_bus.publish(event_to_publish)
         return JSONResponse(status_code=200, content={"message": f"Stage '{request.stage}' re-triggered."})

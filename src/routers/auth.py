@@ -58,6 +58,32 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     user_data['uid'] = user_id
     return user_data
 
+async def get_current_user_from_query(token: str):
+    """
+    Decodes the JWT token from a query parameter and fetches the user document.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials from query",
+    )
+    if not token:
+        raise credentials_exception
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    user_doc = await db.collection('users').document(user_id).get()
+    if not user_doc.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user_data = user_doc.to_dict()
+    user_data['uid'] = user_id
+    return user_data
+
 @router.get("/api/user/me", response_model=User)
 async def get_user_me(current_user: dict = Depends(get_current_user)):
     """

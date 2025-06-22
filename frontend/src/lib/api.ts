@@ -39,10 +39,16 @@ export function listenForUpdates(videoId: string) {
     eventSource.close();
   }
 
-  // Clear old data from the stores
-  resetStores();
+  // resetStores(); // This is now handled by the component.
   
-  const es = new EventSource(`/api/stream-status/${videoId}`);
+  const token = get(accessToken);
+  if (!token) {
+      console.error("No access token found. Cannot connect to status stream.");
+      // Optionally, set an error state in a store
+      return null;
+  }
+
+  const es = new EventSource(`/api/stream-status/${videoId}?token=${encodeURIComponent(token)}`);
   
   es.onmessage = (e) => {
     try {
@@ -54,7 +60,21 @@ export function listenForUpdates(videoId: string) {
     }
   };
 
+  es.addEventListener('error', (e) => {
+    // This listener handles custom 'error' events from the server, not connection errors.
+    console.error('Received error from server:', e);
+    try {
+        const data = JSON.parse((e as MessageEvent).data);
+        // Here you could set an error state in a store to display to the user
+        // e.g., sseError.set(data.message);
+    } catch (err) {
+        // e.g., sseError.set('An unknown error occurred on the stream.');
+    }
+    es.close();
+  });
+
   es.onerror = (err) => {
+    // This listener handles network-level errors, like the connection dropping.
     console.error('EventSource failed:', err);
     es.close();
     // Here you could set an error state in a store if needed

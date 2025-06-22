@@ -84,11 +84,13 @@
         }
         try {
           await retriggerStage(currentVideoId, stage);
+          /* This confirmation is removed as per user request.
           Swal.fire(
             'Restarted!',
             `The process will now re-run from the ${stage} stage.`,
             'success'
           );
+          */
         } catch (err: any) {
           Swal.fire(
             'Error!',
@@ -112,18 +114,42 @@
     hasHandledFirstStatus = true;
   }
 
-   const agents = [
-    'Ingestion',
-    'Transcription',
-    'Analysis',
-    'Copywriting',
-    'Visuals',
-    'Publisher'
+   const agentDetails = [
+    {
+      name: 'Ingestion',
+      description: 'The system is preparing to download the video.',
+      longDescription: 'The Ingest stage downloads and stores your YouTube video securely in cloud storage, preparing it for transcription and processing.'
+    },
+    {
+      name: 'Transcription',
+      description: 'Awaiting video download to begin transcription.',
+      longDescription: 'This stage uses advanced speech-to-text AI to convert the spoken content of the video into a text transcript.'
+    },
+    {
+      name: 'Analysis',
+      description: 'Awaiting transcript to begin content analysis.',
+      longDescription: 'The AI analyzes the transcript to extract key topics, identify "shorts" candidates, and create a structured summary.'
+    },
+    {
+      name: 'Copywriting',
+      description: 'Awaiting analysis to begin generating marketing copy.',
+      longDescription: 'Using the analysis, this agent generates materials like social media posts, email newsletters, and articles.'
+    },
+    {
+      name: 'Visuals',
+      description: 'Awaiting analysis to begin generating visual assets.',
+      longDescription: 'This agent generates relevant visual assets, like thumbnails and quote graphics, based on the marketing copy and analysis.'
+    },
+    {
+      name: 'Publisher',
+      description: 'Awaiting content to publish.',
+      longDescription: 'The final stage, where the generated content and visuals are prepared for publishing.'
+    }
   ];
 
    const statusMap: Record<string, { agent: string; state: 'active' | 'completed' | 'failed' }> = {
     'ingesting':         { agent: 'Ingestion',     state: 'active'    },
-    'downloading':       { agent: 'Ingestion',     state: 'active'    },
+    'downloading':       { agent: 'Transcription', state: 'active'    },
     'ingested':          { agent: 'Ingestion',     state: 'completed' },
     'ingestion_failed':  { agent: 'Ingestion',     state: 'failed'    },
 
@@ -158,30 +184,35 @@
     console.log('Received video status from backend:', $videoStatus);
   }
 
-  $: stages = agents.map((agent) => {
-    // default to "pending"
-    let state: 'pending' | 'active' | 'completed' | 'failed' = 'pending';
+  $: stages = agentDetails.map((detail, index) => {
+    let status: 'pending' | 'active' | 'completed' | 'failed' = 'pending';
+    let description = detail.description;
 
     if ($videoStatus?.status) {
-      const entry = statusMap[$videoStatus.status];
-      if (entry) {
-        const currentAgent = entry.agent;
-        const currentState = entry.state;
-        const currentIndex = agents.indexOf(currentAgent);
-        const thisIndex    = agents.indexOf(agent);
+        const entry = statusMap[$videoStatus.status];
+        if (entry) {
+            const currentAgentName = entry.agent;
+            const currentState = entry.state;
+            const agentNames = agentDetails.map(d => d.name);
+            const currentIndex = agentNames.indexOf(currentAgentName);
+            const thisIndex = agentNames.indexOf(detail.name);
 
-        if (agent === currentAgent) {
-          // the one that's running or just finished
-          state = currentState;
-        } else if (thisIndex < currentIndex) {
-          // any agent before it must have completed already
-          state = 'completed';
+            if (detail.name === currentAgentName) {
+                status = currentState;
+                // Use the detailed message from the backend if available
+                description = $videoStatus.status_message || `Task is ${currentState}.`;
+            } else if (thisIndex < currentIndex) {
+                status = 'completed';
+                description = `Stage ${detail.name} completed successfully.`;
+            }
         }
-        // otherwise leave it as "pending"
-      }
     }
 
-    return { name: agent, status: state };
+    return {
+        ...detail,
+        status: status,
+        description: description
+    };
   });
 </script>
 

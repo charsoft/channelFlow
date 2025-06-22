@@ -57,22 +57,22 @@ class TranscriptionAgent:
 
     async def handle_new_video(self, event: "NewVideoDetected"):
         """Handles the original flow where the video needs to be downloaded."""
-        print(f"✍️ TranscriptionAgent: Received new video to download: {event.video_title}")
-        
-        # Immediately update status to show we are starting the download
-        await self.update_video_status(
-            event.video_id,
-            "downloading",
-            {"status_message": "Attempting to download video from source..."}
-        )
+        print(f"✍️ TranscriptionAgent: Received new video: {event.video_title}")
 
         try:
-            gcs_uri, _ = await self._download_video_to_gcs(event)
-            if not gcs_uri:
+            # Immediately update status to show we are starting the download/retrieval process
+            await self.update_video_status(
+                event.video_id,
+                "downloading",
+                {"status_message": "Locating video file..."}
+            )
+
+            video_gcs_uri, video_gcs_blob = await self._get_video_gcs_uri(event)
+            if not video_gcs_uri:
                 raise FileNotFoundError("Could not locate or download the video file.")
             
             # Now that we have a GCS URI, we can proceed with the common transcription logic
-            await self._perform_transcription(event.video_id, event.video_title, gcs_uri)
+            await self._perform_transcription(event.video_id, event.video_title, video_gcs_uri)
         except Exception as e:
             print(f"❌ TranscriptionAgent Error during download: {e}")
             await self.update_video_status(
@@ -152,7 +152,6 @@ class TranscriptionAgent:
             transcript_gcs_uri=transcript_gcs_uri
         ))
 
-
     async def _download_video_to_gcs(self, event: NewVideoDetected) -> (str, storage.Blob):
         """Downloads a video from a URL using yt-dlp and saves it to GCS."""
         # First, check if the file already exists from a previous attempt
@@ -165,6 +164,14 @@ class TranscriptionAgent:
                 return f"gs://{self.bucket_name}/{blob.name}", blob
 
         print(f"   Video not in cache. Downloading from YouTube: {event.video_url}")
+        
+        # Add a status update specifically for downloading from YouTube
+        await self.update_video_status(
+            event.video_id,
+            "downloading",
+            {"status_message": "Downloading video from YouTube..."}
+        )
+
         with tempfile.TemporaryDirectory() as tmpdir:
             ydl_opts = {
                 'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',

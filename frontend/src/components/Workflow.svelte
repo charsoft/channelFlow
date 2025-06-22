@@ -11,6 +11,8 @@
   export let stages: {
     name: string;
     status: 'pending' | 'active' | 'completed' | 'failed';
+    description: string;
+    longDescription: string;
   }[] = [];
 
   const dispatch = createEventDispatcher();
@@ -24,155 +26,152 @@
 
 </script>
 
-<section class="workflow-section">
-  <h3 class="text-lg font-semibold mb-4 text-gray-700">Live Workflow</h3>
-  <div class="workflow-container">
-   {#each stages as stage, i}
-     <button
-       type="button"
-       class="workflow-step"
-       class:success={stage.status === 'completed'}
-       class:active={stage.status === 'active'}
-       class:failed={stage.status === 'failed'}
-       class:pending={stage.status === 'pending'}
-       class:restart-active={isRestartMode && stage.status === 'completed'}
-       on:click={() => handleStepClick(stage)}
-      disabled={isRestartMode && stage.status !== 'completed'}
-     >
-       <div class="workflow-step-container">
-        <span>{stage.name}</span>
-        {#if isRestartMode && stage.status === 'completed'}
-          <button class="retrigger-button" on:click|stopPropagation={() => handleStepClick(stage)}>
-            Restart from here
-          </button>
-        {/if}
-      </div>
-     </button>
-
-     {#if i < stages.length - 1}
-       <div
-        class="workflow-arrow"
-         class:completed={stage.status === 'completed'}
-       />
-     {/if}
-  {/each}
- </div>
-</section>
+<div class="workflow-table-container">
+    <table class="workflow-table">
+        <thead>
+            <tr>
+                <th>Stage</th>
+                <th>Status</th>
+                <th>Details</th>
+                {#if isRestartMode}
+                    <th class="action-header">Action</th>
+                {/if}
+            </tr>
+        </thead>
+        <tbody>
+            {#each stages as stage}
+                <tr class:active-row={stage.status === 'active'}>
+                    <td class="stage-name"><strong>{stage.name}</strong></td>
+                    <td>
+                        <span class="status-badge" class:success={stage.status === 'completed'} class:active={stage.status === 'active'} class:failed={stage.status === 'failed'} class:pending={stage.status === 'pending'}>
+                            {stage.status}
+                        </span>
+                    </td>
+                    <td class="description">{stage.description}</td>
+                    {#if isRestartMode}
+                        <td class="action-cell">
+                            {#if stage.status === 'completed'}
+                                <button class="retrigger-button" on:click={() => handleStepClick(stage)}>
+                                    Restart
+                                </button>
+                            {/if}
+                        </td>
+                    {/if}
+                </tr>
+            {/each}
+        </tbody>
+    </table>
+</div>
 
 <style>
-
-.workflow-section {
-  padding: 2rem;
+.workflow-table-container {
+  overflow-x: auto;
   background-color: #ffffff;
+  padding: 1.5rem;
   border-radius: 1rem;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
-  margin-top: 2rem;
+  margin-top: 1.5rem;
 }
 
-.workflow-container {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  justify-content: center;
+.workflow-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
 }
 
-button.workflow-step {
-  all: unset;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.75rem 1.25rem;
+.workflow-table th, .workflow-table td {
+  padding: 1rem 1.25rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.workflow-table th {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #6b7280;
+  letter-spacing: 0.05em;
+}
+
+.workflow-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.workflow-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.workflow-table .active-row {
+    background-color: #fefce8; /* yellow-50 */
+    box-shadow: inset 4px 0 0 0 #facc15; /* yellow-400 */
+}
+
+.stage-name {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.description {
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
   border-radius: 9999px;
   font-weight: 600;
-  font-size: 0.875rem;
-  border: 2px solid transparent;
-  transition: all 0.3s ease;
-  min-width: 120px;
-  text-align: center;
-  cursor: default;
-  position: relative;
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+  font-size: 0.75rem;
+  text-transform: capitalize;
+  white-space: nowrap;
 }
 
-.workflow-step.pending {
-  background-color: #f1f5f9;
-  color: #64748b;
-  border-color: #e2e8f0;
+.status-badge.pending {
+  background-color: #f3f4f6;
+  color: #4b5563;
 }
-
-.workflow-step.success {
-  background-color: #ecfdf5;
-  color: #047857;
-  border-color: #34d399;
+.status-badge.completed, .status-badge.success {
+  background-color: #d1fae5;
+  color: #065f46;
 }
-
-.workflow-step.active {
+.status-badge.active {
   background-color: #fef9c3;
   color: #92400e;
-  border-color: #fde047;
-  transform: scale(1.05);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+  animation: pulse 2s infinite;
 }
-
-.workflow-step.failed {
+.status-badge.failed {
   background-color: #fee2e2;
-  color: #b91c1c;
-  border-color: #f87171;
+  color: #991b1b;
 }
 
-.workflow-step.restart-active {
-  cursor: pointer;
-  outline: 2px dashed #94a3b8;
-  outline-offset: 4px;
-}
-
-.workflow-arrow {
-  width: 24px;
-  height: 2px;
-  background-color: #94a3b8;
-  position: relative;
-  margin: 0 0.5rem;
-}
-
-.workflow-arrow::after {
-  content: "";
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-left: 6px solid #94a3b8;
-}
-
-.workflow-arrow.completed {
-  background-color: #047857;
-}
-
-.workflow-arrow.completed::after {
-  border-left-color: #047857;
-}
-
-.workflow-step-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.action-header, .action-cell {
+    text-align: center;
 }
 
 .retrigger-button {
-  margin-top: 0.5rem;
   background: #f3f4f6;
   color: #1f2937;
-  font-size: 0.75rem;
-  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
   border-radius: 0.375rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #d1d5db;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .retrigger-button:hover {
   background-color: #e5e7eb;
+  border-color: #9ca3af;
+  transform: translateY(-1px);
 }
 
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
 </style>
