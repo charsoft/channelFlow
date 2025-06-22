@@ -92,10 +92,10 @@ async def startup_event():
     if not gcp_project_id or not gcp_region:
         print("🚨 GOOGLE_CLOUD_PROJECT or GCP_REGION are not configured. The VisualsAgent will fail.")
 
-    imagen_model_name = os.getenv("IMAGEN_MODEL_NAME", "imagegeneration@006")
+    imagen_model_name = os.getenv("IMAGEN_MODEL_NAME", "")
     print(f"⚪️ Using Imagen model: {imagen_model_name}")
 
-    gemini_model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-pro-latest")
+    gemini_model_name = os.getenv("GEMINI_MODEL_NAME", "")
     print(f"⚪️ Using Gemini model: {gemini_model_name}")
 
     api_key = os.getenv("YOUTUBE_API_KEY")

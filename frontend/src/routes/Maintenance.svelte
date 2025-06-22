@@ -1,9 +1,12 @@
 <script lang="ts">
   import Swal from 'sweetalert2';
+  import { videoStatus } from '../lib/stores';
   import { accessToken } from '../lib/auth';
   import { push, link } from 'svelte-spa-router';
 
-  let youtubeUrl = '';
+  
+  $: youtubeUrl = $videoStatus?.video_id ? 'https://youtu.be/' + $videoStatus.video_id : '';
+
   let selectedFile: File | null = null;
   let fileInput: HTMLInputElement;
   let isUploading = false;

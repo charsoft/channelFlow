@@ -1,6 +1,7 @@
 <!-- src/components/Workflow.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import botWorkingGif from '../assets/bot-working-gif.gif';
  
 /** 
    * Now we accept a pre-built list of stages,
@@ -27,6 +28,7 @@
 </script>
 
 <div class="workflow-table-container">
+  
     <table class="workflow-table">
         <thead>
             <tr>
@@ -50,6 +52,9 @@
                     <td class="description">{stage.description}</td>
                     {#if isRestartMode}
                         <td class="action-cell">
+                          {#if stage.status === 'active'}
+                          <img src={botWorkingGif} alt="Bot Working" class="bot-working-gif" />
+                          {/if}
                             {#if stage.status === 'completed'}
                                 <button class="retrigger-button" on:click={() => handleStepClick(stage)}>
                                     Restart

@@ -257,7 +257,7 @@
            <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleNewIngestion} />
           
          </div>
-          <img src={botWorkingGif} alt="Bot Working" class="bot-working-gif" />
+          
        {:else}
          <div class="youtube-connect-prompt">
            <p>To get started, connect your YouTube account.</p>

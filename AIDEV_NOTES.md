@@ -15,3 +15,11 @@ Core User Journeys
        - at this point the usual functionality will ensue. The workflow will notice that the video exists, and will then light ujp, offering them the option to restart any stage, similar typical flow.
 
 
+Imagen Models as of today:
+ -imagen-3.0-generate-002
+-imagen-3.0-generate-001
+-imagen-3.0-fast-generate-001
+-imagegeneration@006
+-imagegeneration@005
+-imagegeneration@002
+

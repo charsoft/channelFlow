@@ -22,9 +22,13 @@ class VisualsAgent:
     def __init__(self, project_id: str, location: str, bucket_name: str, api_key: str, model_name: str):
         genai.configure(api_key=api_key)
         vertexai.init(project=project_id, location=location)
+        print(f"Using project: {os.getenv("GEMINI_MODEL_NAME", "found nothing")}")
         gemini_model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-pro-latest")
+        imagen_model_name = os.getenv("IMAGEN_MODEL_NAME", "imagen-4.0-generate-preview-06-06")
+        print(f"Using Gemini model: {gemini_model_name}")
+        print(f"Using Imagen model: {imagen_model_name}")
         self.model = genai.GenerativeModel(model_name=gemini_model_name)
-        self.image_model = ImageGenerationModel.from_pretrained(model_name)
+        self.image_model = ImageGenerationModel.from_pretrained(os.getenv("IMAGEN_MODEL_NAME"))
         self.storage_client = storage.Client()
         self.bucket_name = bucket_name
         # Subscribe to CopyReady

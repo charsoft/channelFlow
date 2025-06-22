@@ -1,7 +1,8 @@
 <!-- src/components/StatusLog.svelte -->
 <script lang="ts">
   import { statusHistory, videoStatus } from '../lib/stores';
-
+  
+  import { link, push } from 'svelte-spa-router';
   let dedupedHistory: any[] = [];
   $: {
     dedupedHistory = $statusHistory.filter((current, i, arr) => {
@@ -12,10 +13,14 @@
       return current.status !== previous.status || current.status_message !== previous.status_message;
     });
   }
+  $: videoUrl = $videoStatus?.video_id ? 'https://youtu.be/' + $videoStatus.video_id : '';
+  function goToMaintenance() {
+    push('/Maintenance');
+  }
 </script>  
 
 <div class="status-log-container">
-  <h4>Processing Log for {$videoStatus?.video_id}</h4>
+  <h4>Processing Log for {$videoStatus?.video_id} <button on:click={() => goToMaintenance()}>Maintenance Page</button></h4>
   {#if dedupedHistory.length === 0}
     <p>Waiting for processing to start...</p>
   {:else}
@@ -26,6 +31,7 @@
           Stage <em>{status.status}</em> - {status.status_message || 'Update received.'}
           {#if status.status === 'failed' && status.error}
             <span class="error-message">Error: {status.error}</span>
+            
           {/if}
         </li>
       {/each}
