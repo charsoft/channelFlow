@@ -27,9 +27,14 @@ class ClientConfig(BaseModel):
 class GoogleLoginRequest(BaseModel):
     token: str # This is the Google ID token
 
+class User(BaseModel):
+    uid: str
+    name: str
+    email: str
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     """
-    Decodes the JWT token to get the current user's ID.
+    Decodes the JWT token and fetches the user document from Firestore.
     This function will be used as a dependency for protected endpoints.
     """
     credentials_exception = HTTPException(
@@ -45,9 +50,20 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise credentials_exception
     
-    # You could fetch the user document from Firestore here if needed,
-    # but for now, just returning the ID is sufficient.
-    return {"uid": user_id}
+    user_doc = await db.collection('users').document(user_id).get()
+    if not user_doc.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user_data = user_doc.to_dict()
+    user_data['uid'] = user_id
+    return user_data
+
+@router.get("/api/user/me", response_model=User)
+async def get_user_me(current_user: dict = Depends(get_current_user)):
+    """
+    Returns the details of the currently authenticated user.
+    """
+    return current_user
 
 @router.post("/api/auth/google/login")
 async def google_login(request: GoogleLoginRequest):

@@ -13,6 +13,8 @@ export const videoStatus = writable<any>(null);
  */
 export const statusHistory = writable<any[]>([]);
 
+export const user = writable<any>(null);
+
 /**
  * Resets all stores to their initial state.
  * Called when a new ingestion starts to clear out old data.
@@ -20,4 +22,5 @@ export const statusHistory = writable<any[]>([]);
 export function resetStores() {
     videoStatus.set(null);
     statusHistory.set([]);
+    user.set(null);
 } 

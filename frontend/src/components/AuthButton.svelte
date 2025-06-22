@@ -3,9 +3,25 @@
   import { onMount } from 'svelte';
   import Swal from 'sweetalert2';
   import { accessToken, setAccessToken, clearAccessToken } from '../lib/auth';
-  import { loginWithGoogle } from '../lib/api';
+  import { loginWithGoogle, getUserInfo } from '../lib/api';
+  import { user } from '../lib/stores';
+  import { link, push } from 'svelte-spa-router';
 
   let clientId: string;
+
+  accessToken.subscribe(async (token) => {
+    if (token) {
+      try {
+        const userInfo = await getUserInfo();
+        user.set(userInfo);
+      } catch (error) {
+        console.error('Failed to fetch user info:', error);
+        user.set(null);
+      }
+    } else {
+      user.set(null);
+    }
+  });
 
   function loadGsiScript(): Promise<void> {
     console.log('[AuthButton DBG]: loadGsiScript() called.');
@@ -91,12 +107,32 @@
   function handleLogout() {
     console.log('[AuthButton DBG]: handleLogout() called.');
     clearAccessToken();
+    user.set(null);
     Swal.fire('Logged Out', 'You have been signed out.', 'info');
+    push('/');
   }
 </script>
 
-{#if $accessToken}
+<div class="auth-wrapper">
+  {#if $user}
+    <span class="user-name">Welcome, {$user.name}</span>
     <button on:click={handleLogout} class="button-secondary">Logout</button>
-{:else}
+  {:else if $accessToken}
+    <!-- Still authenticating -->
+    <span>Loading...</span>
+  {:else}
     <div id="gsi-button-container"></div>
-{/if}
+  {/if}
+</div>
+
+<style>
+  .auth-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .user-name {
+    font-weight: 600;
+    color: var(--text-color);
+  }
+</style>

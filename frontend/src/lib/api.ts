@@ -137,3 +137,21 @@ export async function disconnectYouTube(): Promise<void> {
     }
 }
 
+export async function getUserInfo() {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+        throw new Error("No access token found");
+    }
+
+    const response = await fetch('/api/user/me', {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch user info: ${response.statusText}`);
+    }
+    return await response.json();
+}
+
