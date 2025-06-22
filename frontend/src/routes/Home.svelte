@@ -10,6 +10,8 @@
   import { push } from 'svelte-spa-router';
   import Swal from 'sweetalert2';
   import SystemFlow from './SystemFlow.svelte';
+  import WorkflowManager from '../components/WorkflowManager.svelte';
+
 
   let youtubeConnectionStatus: { isConnected: boolean, email?: string } = { isConnected: false };
   let isRestartMode = false;
@@ -65,45 +67,39 @@
     push(`/video/${e.detail.videoId}`);
   }
 
-  async function handleRetrigger(event: { detail: { stage: string }}) {
-    const stage = event.detail.stage;
-    
-    Swal.fire({
-      title: 'Are you sure?',
-      text: `This will re-run the process from the '${stage}' stage.`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Yes, re-run it!'
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        if (!currentVideoId) {
-          Swal.fire('Error!', 'No video is currently being processed.', 'error');
-          return;
-        }
-        try {
-          await retriggerStage(currentVideoId, stage);
-          /* This confirmation is removed as per user request.
-          Swal.fire(
-            'Restarted!',
-            `The process will now re-run from the ${stage} stage.`,
-            'success'
-          );
-          */
-        } catch (err: any) {
-          Swal.fire(
-            'Error!',
-            err.message || 'Failed to re-trigger the process.',
-            'error'
-          );
-        }
+ async function handleRetrigger(event: { detail: { stage: string }}) {
+  const stage = event.detail.stage;
+  
+  Swal.fire({
+    title: 'Are you sure?',
+    text: `This will re-run the process from the '${stage}' stage.`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#3085d6',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Yes, re-run it!'
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      if (!currentVideoId) {
+        Swal.fire('Error!', 'No video is currently being processed.', 'error');
+        return;
       }
+      try {
+        await retriggerStage(currentVideoId, stage);
+        listenForUpdates(currentVideoId); // ✅ This ensures UI stays synced
+      } catch (err: any) {
+        Swal.fire(
+          'Error!',
+          err.message || 'Failed to re-trigger the process.',
+          'error'
+        );
+      }
+    }
 
-      // De-select restart mode regardless of the outcome
-      isRestartMode = false;
-    });
-  }
+    isRestartMode = false;
+  });
+}
+
 
   // This reactive block automatically enters "Restart Mode"
   // if the loaded video is already past the 'ingesting' stage.
@@ -191,9 +187,11 @@
   $: stages = agentDetails.map((detail, index) => {
     let status: 'pending' | 'active' | 'completed' | 'failed' = 'pending';
     let description = detail.description;
+    const currentStatusString = $videoStatus?.status;
+    const statusMessage = $videoStatus?.status_message;
 
-    if ($videoStatus?.status) {
-        const entry = statusMap[$videoStatus.status];
+    if (currentStatusString) {
+        const entry = statusMap[currentStatusString];
         if (entry) {
             const currentAgentName = entry.agent;
             const currentState = entry.state;
@@ -203,13 +201,18 @@
 
             if (detail.name === currentAgentName) {
                 status = currentState;
-                // Use the detailed message from the backend if available
-                description = $videoStatus.status_message || `Task is ${currentState}.`;
+                description = statusMessage || `Task is ${currentState}.`;
             } else if (thisIndex < currentIndex) {
                 status = 'completed';
                 description = `Stage ${detail.name} completed successfully.`;
             }
         }
+    }
+    
+    // When the whole process is done, mark all as complete.
+    if (currentStatusString === 'published' || currentStatusString === 'complete') {
+      status = 'completed';
+      description = `Stage ${detail.name} completed successfully.`;
     }
 
     return {
@@ -218,6 +221,13 @@
         description: description
     };
   });
+
+  // --- DEBUG LOGGING: STAGES ARRAY ---
+  $: if (stages && stages.length > 0) {
+    console.log('[Home.svelte] Calculated stages array:', JSON.parse(JSON.stringify(stages)));
+  } else {
+    console.log('[Home.svelte] Debug: `stages` array is either not defined or empty.', stages);
+  }
 </script>
 
 {#if $accessToken}
@@ -250,7 +260,12 @@
          </div>
        {/if}
      </p>
-     
+    </div>
+    <p style="color:blue">DEBUG: $videoStatus = {JSON.stringify($videoStatus)}</p>
+  </div>
+{/if}
+{#if $videoStatus}
+  ...
 
       {#if $videoStatus}
         <div class="processing-section">
@@ -267,18 +282,19 @@
            {#if isRestartMode}
             <p class="restart-prompt">Select a completed stage to restart from.</p>
           {/if}
-          <Workflow 
-            bind:isRestartMode 
-            {stages}
-            on:retrigger={handleRetrigger} 
+         <WorkflowManager 
+            video={$videoStatus}
+            stagesMetadata={agentDetails}
+            on:retrigger={handleRetrigger}
           />
+
           <StatusLog />
         </div>
-      {/if}
-    </div>
-  </div>
+         {/if}
+      
 {:else}
-  <div class="home-container" style="padding-bottom: 0; min-height: 0;">
+
+<div class="home-container" style="padding-bottom: 0; min-height: 0;">
     <div class="content-column" style="min-height: initial; text-align: center;">
         <h1 class="mb-2">Amplify your message.</h1>
         <p class="mb-4">

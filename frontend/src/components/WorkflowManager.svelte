@@ -1,73 +1,134 @@
-<!-- src/components/WorkflowManager.svelte -->
 <script lang="ts">
-  import { onMount, createEventDispatcher } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
   import Workflow from './Workflow.svelte';
 
-  export let video: any; // The full video object from Firestore/API
+  export let video: any;
+  export let stagesMetadata: { name: string; description: string; longDescription: string }[];
 
   const dispatch = createEventDispatcher();
 
-  onMount(() => {
-    console.log('[WorkflowManager] Component Mounted. Initial video data:', JSON.parse(JSON.stringify(video)));
-  });
+  const stageOrder = new Map(stagesMetadata.map((stage, i) => [stage.name.toLowerCase(), i]));
 
-  // The single source of truth for all workflow stages
-  const ALL_STAGES = [
-    { name: 'ingestion', description: 'Starting the process, getting video details.', longDescription: '' },
-    { name: 'transcription', description: 'Converting audio to text.', longDescription: '' },
-    { name: 'analysis', description: 'Analyzing the transcript for key topics and content.', longDescription: '' },
-    { name: 'copywriting', description: 'Generating marketing copy and social media posts.', longDescription: '' },
-    { name: 'visuals', description: 'Creating relevant images and thumbnails.', longDescription: '' },
-    { name: 'publishing', description: 'Publishing content to configured platforms.', longDescription: '' },
-  ];
+const statusToStageMap: Record<string, string> = {
+  // Ingestion
+  "ingesting": "ingestion",
+  "downloading": "ingestion",
+  "ingested": "ingestion",
+  "ingestion": "ingestion",
+  "ingestion_failed": "ingestion",
 
-  // A map to determine the order of stages.
-  const stageOrder = new Map(ALL_STAGES.map((stage, i) => [stage.name, i]));
+  // Transcription
+  "transcribing": "transcription",
+  "transcribed": "transcription",
+  "transcription": "transcription",
+  "transcribing_failed": "transcription",
+  "transcription_failed": "transcription",
+  "auth_failed": "transcription",
 
-  // Reactive block that recalculates the stages whenever the video data changes.
-  $: derivedStages = ALL_STAGES.map(stage => {
-    const currentStatusString = video?.status || 'unknown';
-    // Gracefully handle unknown statuses by defaulting to a very high index
-    const orderOfCurrentStage = stageOrder.get(currentStatusString.replace(/_rerun$|_failed$|_complete$|^generating_|^pending_/, '')) ?? 99;
-    const orderOfThisStage = stageOrder.get(stage.name) ?? 100;
+  // Analysis
+  "analyzing": "analysis",
+  "analyzed": "analysis",
+  "analysis": "analysis",
+  "analyzing_failed": "analysis",
+  "analysis_failed": "analysis",
 
-    let status: 'pending' | 'active' | 'completed' | 'failed' = 'pending';
+  // Copywriting
+  "generating_copy": "copywriting",
+  "copy_generated": "copywriting",
+  "copywriting": "copywriting",
+  "copy": "copywriting",
+  "generating_copy_failed": "copywriting",
+  "copy_failed": "copywriting",
 
-    if (currentStatusString.endsWith('_failed')) {
-      if (orderOfThisStage === orderOfCurrentStage) {
-        status = 'failed';
-      } else if (orderOfThisStage < orderOfCurrentStage) {
-        status = 'completed';
-      }
-    } else {
-      if (orderOfThisStage < orderOfCurrentStage) {
-        status = 'completed';
-      } else if (orderOfThisStage === orderOfCurrentStage) {
-        status = 'active';
-      }
+  // Visuals
+  "generating_visuals": "visuals",
+  "visuals_generated": "visuals",
+  "visuals": "visuals",
+  "generating_visuals_failed": "visuals",
+  "visuals_failed": "visuals",
+
+  // Publishing
+  "publishing": "publishing",
+  "published": "publishing",
+  "publisher": "publishing",
+  "publishing_failed": "publishing"
+};
+
+
+
+  $: derivedStages = (() => {
+  
+
+    if (!video?.status) return [];
+
+    const currentStatus = video.status;
+    const normalized = currentStatus.replace(/_rerun$|_failed$|_complete$|^generating_|^pending_/, '');
+    const stageKey = statusToStageMap[normalized] || 'unknown';
+    if (stageKey === 'unknown') {
+      console.warn('[WorkflowManager] Unknown stage key:', normalized);
     }
-    
-    // Final override for the 'published' state
-    if (currentStatusString === 'published' || currentStatusString === 'complete' || video?.status === 'published') {
-        status = 'completed';
+
+    const orderOfCurrentStage = stageKey && stageOrder.has(stageKey)
+    ? stageOrder.get(stageKey)
+    : undefined;
+
+    console.log('[WorkflowManager]', {
+      currentStatus,
+      normalized,
+      stageKey,
+      orderOfCurrentStage
+    });
+
+
+   
+
+  const orderOfThisStage = stageOrder.get(stage.name.toLowerCase()) ?? 100;
+
+
+    console.log('[WorkflowManager] video.status =', currentStatus);
+    console.log('[WorkflowManager] normalized =', normalized);
+    console.log('[WorkflowManager] matched stageKey =', stageKey);
+    console.log('[WorkflowManager] orderOfCurrentStage =', orderOfCurrentStage);
+
+    return stagesMetadata.map(stage => {
+      const orderOfThisStage = stageOrder.get(stage.name.toLowerCase()) ?? 100;
+
+      let status: 'pending' | 'active' | 'completed' | 'failed' = 'pending';
+
+     if (orderOfCurrentStage === -1) {
+        status = 'pending'; // Unknown state, wait for next update
+      } else if (currentStatus.endsWith('_failed')) {
+        if (orderOfThisStage === orderOfCurrentStage) status = 'failed';
+        else if (orderOfThisStage < orderOfCurrentStage) status = 'completed';
+      } else {
+        if (orderOfThisStage < orderOfCurrentStage) status = 'completed';
+        else if (orderOfThisStage === orderOfCurrentStage) status = 'active';
+      }
+
+console.log(`[🧪 STAGE CHECK] ${stage.name} | order: ${orderOfThisStage}, currentOrder: ${orderOfCurrentStage}, final status: ${status}`);
+
+     if (
+  currentStatus === 'published' || 
+  (currentStatus === 'complete' && stage.name.toLowerCase() === 'publisher')
+    ) {
+      status = 'completed';
     }
 
-    return {
-      ...stage,
-      status: status,
-    };
-  });
 
-  $: if (derivedStages) {
-    console.log('[WorkflowManager] Derived stages:', JSON.parse(JSON.stringify(derivedStages)));
-  }
+      return {
+        ...stage,
+        status,
+      };
+    });
+  })();
 
   function handleRetrigger(event: any) {
-    // Forward the event up to the parent component (e.g., VideoDetail.svelte)
     dispatch('retrigger', event.detail);
   }
 </script>
+<p style="color:red">DEBUG: derivedStages = {JSON.stringify(derivedStages)}</p>
 
-{#if derivedStages}
+{#if derivedStages.length}
+
   <Workflow stages={derivedStages} on:retrigger={handleRetrigger} />
-{/if} 
+{/if}
