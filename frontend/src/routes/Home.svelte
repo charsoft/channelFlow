@@ -339,4 +339,24 @@
     color: #111827; /* gray-900 */
     background-color: #d1d5db; /* gray-300 */
   }
+
+  .agent-stage-btn {
+  all: unset; /* ✅ Wipe out all inherited styles */
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  margin: 0.25rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  background-color: #f3f4f6; /* gray-100 */
+  border: 1px solid #e5e7eb; /* gray-200 */
+  color: #374151; /* gray-700 */
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.agent-stage-btn:hover {
+  background-color: #e5e7eb; /* slightly darker gray */
+  transform: translateY(-2px);
+}
+
 </style>

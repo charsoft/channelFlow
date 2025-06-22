@@ -24,6 +24,22 @@ router = APIRouter()
 storage_client = storage.Client()
 bucket_name = os.environ.get("GCS_BUCKET_NAME")
 
+def serialize_firestore_doc(doc_dict):
+    """
+    Recursively iterates through a dictionary and converts Firestore-specific
+    or other datetime-like objects to JSON-serializable formats.
+    """
+    def convert(value):
+        if hasattr(value, "isoformat"):  # Handles datetime, DatetimeWithNanoseconds
+            return value.isoformat()
+        elif isinstance(value, dict):
+            return {k: convert(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [convert(v) for v in value]
+        else:
+            return value
+    return {k: convert(v) for k, v in doc_dict.items()}
+
 def _get_signed_url(gcs_uri: str) -> str:
     """Converts a GCS URI to a signed URL."""
     if not gcs_uri or not bucket_name:
@@ -182,11 +198,7 @@ async def get_status(video_id: str):
     if not doc.exists:
         return JSONResponse(status_code=404, content={"message": "Video not found."})
     
-    data = doc.to_dict()
-    for key, value in data.items():
-        if isinstance(value, datetime):
-            data[key] = value.isoformat()
-    
+    data = serialize_firestore_doc(doc.to_dict())
     return JSONResponse(status_code=200, content={"data": data})
 
 @router.get("/api/stream-status/{video_id}")
@@ -206,14 +218,10 @@ async def stream_status(request: Request, video_id: str):
                     yield { "event": "message", "data": json.dumps({"status": "not_found", "message": "Video not found."})}
                     break
                 
-                data = doc.to_dict()
+                data = serialize_firestore_doc(doc.to_dict())
                 current_status = data.get("status")
 
                 if current_status != last_known_status:
-                    for key, value in data.items():
-                        if isinstance(value, datetime):
-                            data[key] = value.isoformat()
-                    
                     yield { "event": "message", "data": json.dumps(data) }
                     last_known_status = current_status
                 
@@ -310,28 +318,19 @@ async def get_videos(current_user: dict = Depends(get_current_user)):
         docs = videos_ref.stream()
         videos = []
         async for doc in docs:
-            video_data = doc.to_dict()
-            video_data["id"] = doc.id
+            video_data = serialize_firestore_doc(doc.to_dict())
+            video_data["video_id"] = doc.id
             
-            # Generate signed URLs for thumbnails to display on the dashboard
-            thumbnail_urls = []
-            image_gcs_uris = video_data.get("image_gcs_uris", [])
-            on_demand_thumbnails = video_data.get("on_demand_thumbnails", [])
+            # Generate signed URLs for thumbnails if they exist
+            if image_urls := video_data.get("image_urls"):
+                video_data["image_urls"] = [_get_signed_url(url) for url in image_urls if url]
+            
+            if on_demand_thumbs := video_data.get("on_demand_thumbnails"):
+                video_data["on_demand_thumbnails"] = [
+                    {**thumb, "image_url": _get_signed_url(thumb["image_url"])}
+                    for thumb in on_demand_thumbs if thumb.get("image_url")
+                ]
 
-            # Get up to 4 URLs, prioritizing on-demand ones
-            for item in reversed(on_demand_thumbnails): # newest first
-                if len(thumbnail_urls) < 4 and "gcs_uri" in item:
-                    thumbnail_urls.append(_get_signed_url(item["gcs_uri"]))
-            
-            for uri in image_gcs_uris:
-                if len(thumbnail_urls) < 4:
-                    thumbnail_urls.append(_get_signed_url(uri))
-            
-            video_data["thumbnails"] = [url for url in thumbnail_urls if url]
-
-            for key, value in video_data.items():
-                if isinstance(value, datetime):
-                    video_data[key] = value.isoformat()
             videos.append(video_data)
         
         # Sort in the application to handle missing 'created_at' fields gracefully
@@ -344,35 +343,31 @@ async def get_videos(current_user: dict = Depends(get_current_user)):
 
 @router.get("/api/video/{video_id}")
 async def get_video(video_id: str):
-    try:
-        doc_ref = db.collection("videos").document(video_id)
-        video_doc = await doc_ref.get()
-        if not video_doc.exists:
-            raise HTTPException(status_code=404, detail="Video not found")
+    """
+    Retrieves details for a single video.
+    """
+    video_doc_ref = db.collection("videos").document(video_id)
+    doc = await video_doc_ref.get()
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    video_data = serialize_firestore_doc(doc.to_dict())
+    video_data["video_id"] = doc.id
     
-        video_data = video_doc.to_dict()
+    # Generate signed URLs for any GCS URIs
+    if image_urls := video_data.get("image_urls"):
+        video_data["image_urls"] = [_get_signed_url(url) for url in image_urls if url]
+        
+    # Convert on_demand_thumbnails gcs_uris to signed URLs and datetimes
+    if "on_demand_thumbnails" in video_data and video_data["on_demand_thumbnails"]:
+        for item in video_data["on_demand_thumbnails"]:
+            if "gcs_uri" in item:
+                item["image_url"] = _get_signed_url(item["gcs_uri"])
+            if "created_at" in item and isinstance(item["created_at"], datetime):
+                item["created_at"] = item["created_at"].isoformat()
 
-        # Convert image_gcs_uris to signed URLs
-        if "image_gcs_uris" in video_data and video_data["image_gcs_uris"]:
-            video_data["image_urls"] = [_get_signed_url(uri) for uri in video_data["image_gcs_uris"]]
-
-        # Convert on_demand_thumbnails gcs_uris to signed URLs and datetimes
-        if "on_demand_thumbnails" in video_data and video_data["on_demand_thumbnails"]:
-            for item in video_data["on_demand_thumbnails"]:
-                if "gcs_uri" in item:
-                    item["image_url"] = _get_signed_url(item["gcs_uri"])
-                if "created_at" in item and isinstance(item["created_at"], datetime):
-                    item["created_at"] = item["created_at"].isoformat()
-
-        # Convert top-level datetimes
-        for key, value in video_data.items():
-            if isinstance(value, datetime):
-                video_data[key] = value.isoformat()
-
-        return {"video": video_data}
-    except Exception as e:
-        print(f"Error fetching video {video_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch video.")
+    return {"video": video_data}
 
 @router.delete("/api/videos/{video_id}")
 async def delete_video(video_id: str):

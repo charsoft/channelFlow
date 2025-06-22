@@ -60,85 +60,119 @@
 </section>
 
 <style>
-  .workflow-section {
-    padding: 1.5rem;
-    background-color: #ffffff;
-    border-radius: 0.5rem;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  }
-  .workflow-container {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap; /* Allows steps to wrap on smaller screens */
-  }
-  button.workflow-step {
-    /* Base styles */
-    padding: 0.5rem 1rem;
-    border-radius: 0.375rem; /* rounded-md */
-    font-weight: 500; /* font-medium */
-    transition: all 0.3s ease;
-    border: 1px solid; /* Default border, color will be set by status */
-    
-    /* Button resets */
-    font-family: inherit;
-    font-size: 100%;
-    margin: 0;
-    text-align: center;
-    cursor: default; /* Not clickable by default */
-  }
-  .workflow-step.pending {
-    background-color: #e5e7eb; /* bg-gray-200 */
-    color: #374151; /* text-gray-700 */
-    border-color: #d1d5db; /* border-gray-300 */
-  }
-  .workflow-step.success {
-    background-color: #dcfce7; /* bg-green-100 */
-    color: #166534; /* text-green-800 */
-    border-color: #86efac; /* border-green-300 */
-  }
-  .workflow-step.active {
-    background-color: #fefce8; /* bg-yellow-50 */
-    color: #854d0e; /* text-yellow-800 */
-    border-color: #fde047; /* border-yellow-300 */
-    transform: scale(1.05);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  }
-  .workflow-step.failed {
-    background-color: #fee2e2; /* bg-red-100 */
-    color: #991b1b; /* text-red-800 */
-    border-color: #fca5a5; /* border-red-300 */
-  }
-  .workflow-step.restart-active {
-    cursor: pointer;
-    box-shadow: 0 0 0 3px #9ca3af; /* A gray ring to indicate it's clickable */
-  }
-  .workflow-arrow {
-    width: 0;
-    height: 0;
-    border-top: 10px solid transparent;
-    border-bottom: 10px solid transparent;
-    border-left: 10px solid #9ca3af; /* text-gray-400 */
-    margin: 0 1rem; /* Adjust spacing */
-    transition: all 0.3s ease;
-  }
-  .workflow-arrow.completed {
-    border-left-color: #166534; /* text-green-800 */
-  }
-  .workflow-step-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  .retrigger-button {
-    font-size: 0.75rem;
-    padding: 0.1rem 0.5rem;
-    margin-top: 0.5rem;
-    border: 1px solid #9ca3af;
-    border-radius: 0.25rem;
-    background-color: #f3f4f6;
-    cursor: pointer;
-  }
-  .retrigger-button:hover {
-    background-color: #e5e7eb;
-  }
+
+.workflow-section {
+  padding: 2rem;
+  background-color: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+  margin-top: 2rem;
+}
+
+.workflow-container {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+button.workflow-step {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.25rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+  min-width: 120px;
+  text-align: center;
+  cursor: default;
+  position: relative;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+.workflow-step.pending {
+  background-color: #f1f5f9;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.workflow-step.success {
+  background-color: #ecfdf5;
+  color: #047857;
+  border-color: #34d399;
+}
+
+.workflow-step.active {
+  background-color: #fef9c3;
+  color: #92400e;
+  border-color: #fde047;
+  transform: scale(1.05);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+}
+
+.workflow-step.failed {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border-color: #f87171;
+}
+
+.workflow-step.restart-active {
+  cursor: pointer;
+  outline: 2px dashed #94a3b8;
+  outline-offset: 4px;
+}
+
+.workflow-arrow {
+  width: 24px;
+  height: 2px;
+  background-color: #94a3b8;
+  position: relative;
+  margin: 0 0.5rem;
+}
+
+.workflow-arrow::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 6px solid #94a3b8;
+}
+
+.workflow-arrow.completed {
+  background-color: #047857;
+}
+
+.workflow-arrow.completed::after {
+  border-left-color: #047857;
+}
+
+.workflow-step-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.retrigger-button {
+  margin-top: 0.5rem;
+  background: #f3f4f6;
+  color: #1f2937;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.retrigger-button:hover {
+  background-color: #e5e7eb;
+}
+
 </style>
