@@ -26,7 +26,7 @@
 
     const client = google.accounts.oauth2.initCodeClient({
       client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/youtube.readonly',
+      scope: 'https://www.googleapis.com/auth/youtube.readonly openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
       callback: async (response) => {
         try {
           await exchangeAuthCode(response.code);

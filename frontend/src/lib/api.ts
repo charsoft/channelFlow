@@ -76,25 +76,18 @@ export async function retriggerStage(videoId: string, stage: string): Promise<vo
   }
 }
 
-export async function checkYouTubeConnection(): Promise<boolean> {
-  try {
-    const res = await fetch('/api/auth/youtube/status', {
-      method: 'GET',
-      headers: await getHeaders()
+export async function checkYouTubeConnection(): Promise<{ isConnected: boolean; email?: string }> {
+    const token = localStorage.getItem('accessToken');
+    if (!token) throw new Error("Not authenticated");
+
+    const response = await fetch('/api/auth/youtube/status', {
+        headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (!res.ok) {
-      // If we get a 401, it just means the user isn't logged in, which is fine.
-      if (res.status === 401) return false;
-      // For other errors, log them but treat as not connected.
-      console.error(`API Error (${res.status}):`, await res.text());
-      return false;
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Request failed' }));
+        throw new Error(errorData.detail);
     }
-    const data = await res.json();
-    return data.isConnected === true;
-  } catch (err) {
-    console.error("Network or other error checking YouTube status:", err);
-    return false;
-  }
+    return await response.json();
 }
 
 export async function exchangeAuthCode(code: string): Promise<void> {

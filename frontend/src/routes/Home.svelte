@@ -11,7 +11,7 @@
   import Swal from 'sweetalert2';
   import SystemFlow from './SystemFlow.svelte';
 
-  let isYouTubeConnected = false;
+  let youtubeConnectionStatus: { isConnected: boolean, email?: string } = { isConnected: false };
   let isRestartMode = false;
   let currentVideoId: string | null = null;
   let hasHandledFirstStatus = false;
@@ -27,22 +27,22 @@
   // 2) Helper to (re)validate connection state
   async function refreshConnection() {
     try {
-      isYouTubeConnected = await checkYouTubeConnection();
+      youtubeConnectionStatus = await checkYouTubeConnection();
     } catch {
-      isYouTubeConnected = false;
+      youtubeConnectionStatus = { isConnected: false };
     }
   }
 
   // 3) Fired when your ConnectYouTubeButton emits `on:connected`
   function onYouTubeConnected() {
-    isYouTubeConnected = true;
+    refreshConnection();
   }
 
   // 4) Your existing disconnect flow
   async function handleDisconnect() {
     try {
       await disconnectYouTube();
-      isYouTubeConnected = false;
+      youtubeConnectionStatus = { isConnected: false };
       Swal.fire('Success', 'Your YouTube account has been disconnected.', 'success');
     } catch (err: any) {
       Swal.fire('Error', err.message, 'error');
@@ -194,11 +194,16 @@
         multi-platform marketing campaign, orchestrated by autonomous AI agents.
       </p>
     <p class="mb-6">
-       {#if isYouTubeConnected}
+       {#if youtubeConnectionStatus.isConnected}
          <div class="ingestion-controls">
            <div class="youtube-connected-status">
              <span class="icon">✅</span>
-             <span class="status-text">YouTube Connected</span>
+             <span class="status-text">
+               YouTube Connected
+               {#if youtubeConnectionStatus.email}
+                 <span class="email-display">({youtubeConnectionStatus.email})</span>
+               {/if}
+             </span>
              <button on:click={handleDisconnect} class="disconnect-button" title="Disconnect YouTube Account">×</button>
            </div>
            <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleNewIngestion} />
@@ -260,9 +265,10 @@
   .content-column {
     justify-content: center;
     min-height:90vh;
-    max-width: none;
-    width: 75%;
-    justify-content: center;
+    max-width: 800px;
+    width: 100%;
+    text-align: left;
+    margin: 0 auto; /* Center the column itself */
     background-color: #ffffff;
     padding: 2.5rem;
     border-radius: 0.75rem;
@@ -290,30 +296,35 @@
     padding-top: 2rem;
   }
   .ingestion-controls {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    width: 100%;
+    border: 1px solid var(--border-color);
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    background-color: var(--background-color-light);
   }
 
   .youtube-connected-status {
     display: flex;
     align-items: center;
-    padding: 0.5rem 0.5rem 0.5rem 1rem; /* Adjusted padding */
-    background-color: #f0fdf4; /* green-50 */
-    border: 1px solid #bbf7d0; /* green-200 */
-    border-radius: 0.5rem;
-    color: #166534; /* green-800 */
+    margin-bottom: 1.5rem;
+    background-color: #e8f5e9; /* Light green */
+    color: #2e7d32; /* Dark green */
+    padding: 0.75rem 1rem;
+    border-radius: 0.375rem;
     font-weight: 500;
-    flex-shrink: 0; /* Prevent this from shrinking */
   }
 
-  .status-text {
-    margin-right: 0.75rem;
+  .youtube-connected-status .icon {
+    margin-right: 0.5rem;
+  }
+
+  .youtube-connected-status .email-display {
+    font-weight: 400;
+    margin-left: 0.5rem;
+    color: #616161;
   }
 
   .disconnect-button {
+    margin-left: auto;
     background: none;
     border: none;
     color: #9ca3af; /* gray-400 */
@@ -326,9 +337,5 @@
   .disconnect-button:hover {
     color: #111827; /* gray-900 */
     background-color: #d1d5db; /* gray-300 */
-  }
-
-  .icon {
-    margin-right: 0.5rem;
   }
 </style>

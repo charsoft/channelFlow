@@ -166,13 +166,40 @@ async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(g
         flow.fetch_token(code=request.code)
         creds = flow.credentials
 
+        # Get user info from the new credentials to ensure we're using the correct user ID
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                creds.id_token, google_requests.Request(), client_id, clock_skew_in_seconds=5)
+            youtube_user_id = idinfo['sub']
+            
+            # Ensure a user record exists for this Google Account.
+            user_doc_ref = db.collection('users').document(youtube_user_id)
+            user_doc = await user_doc_ref.get()
+            if not user_doc.exists:
+                await user_doc_ref.set({
+                    'email': idinfo.get('email'),
+                    'name': idinfo.get('name'),
+                    'created_at': datetime.utcnow()
+                })
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Could not verify ID token from new credentials: {e}"
+            )
+
+        # Now, link the YouTube credentials to the currently LOGGED-IN user's account
+        logged_in_user_id = current_user.get("uid")
+
         # Convert credentials to a dict and encrypt them
         creds_json = creds.to_json()
         encrypted_creds = encrypt_data(creds_json.encode())
 
-        # Save encrypted credentials to Firestore
-        cred_doc_ref = db.collection("user_credentials").document(user_id)
-        await cred_doc_ref.set({"credentials": encrypted_creds})
+        # Save encrypted credentials to Firestore under the LOGGED-IN user's ID
+        cred_doc_ref = db.collection("user_credentials").document(logged_in_user_id)
+        await cred_doc_ref.set({
+            "credentials": encrypted_creds,
+            "youtube_user_id": youtube_user_id # Store a reference to the actual credential owner
+        })
 
         return {"message": "Successfully connected YouTube account."}
 
@@ -190,12 +217,23 @@ async def get_youtube_auth_status(current_user: dict = Depends(get_current_user)
     Checks if the current user has valid YouTube credentials stored.
     """
     user_id = current_user.get("uid")
-    cred_doc = await db.collection("user_credentials").document(user_id).get()
+    cred_doc_ref = db.collection("user_credentials").document(user_id)
+    cred_doc = await cred_doc_ref.get()
     
     if cred_doc.exists:
-        return {"isConnected": True}
-    
-    return {"isConnected": False}
+        cred_data = cred_doc.to_dict()
+        youtube_user_id = cred_data.get("youtube_user_id")
+        
+        if youtube_user_id:
+            youtube_user_doc = await db.collection("users").document(youtube_user_id).get()
+            if youtube_user_doc.exists:
+                youtube_user_data = youtube_user_doc.to_dict()
+                return {
+                    "isConnected": True,
+                    "email": youtube_user_data.get("email")
+                }
+
+    return {"isConnected": False, "email": None}
 
 @router.post("/api/auth/youtube/disconnect")
 async def disconnect_youtube_account(current_user: dict = Depends(get_current_user)):
