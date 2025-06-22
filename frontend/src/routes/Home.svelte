@@ -9,6 +9,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import Swal from 'sweetalert2';
+  import SystemFlow from './SystemFlow.svelte';
 
   let isYouTubeConnected = false;
   let isRestartMode = false;
@@ -184,59 +185,70 @@
   });
 </script>
 
-<div class="home-container">
-  <div class="content-column">
-    <h1 class="mb-2">Amplify your message.</h1>
-    <p class="mb-4">
-      Paste a YouTube link to transform a single video into a complete,
-      multi-platform marketing campaign, orchestrated by autonomous AI agents.
-    </p>
-  <p class="mb-6">
-     {#if $accessToken}
-      {#if isYouTubeConnected}
-        <div class="ingestion-controls">
-          <div class="youtube-connected-status">
-            <span class="icon">✅</span>
-            <span class="status-text">YouTube Connected</span>
-            <button on:click={handleDisconnect} class="disconnect-button" title="Disconnect YouTube Account">×</button>
+{#if $accessToken}
+  <div class="home-container">
+    <div class="content-column">
+      <h1 class="mb-2">Amplify your message.</h1>
+      <p class="mb-4">
+        Paste a YouTube link to transform a single video into a complete,
+        multi-platform marketing campaign, orchestrated by autonomous AI agents.
+      </p>
+    <p class="mb-6">
+       {#if isYouTubeConnected}
+         <div class="ingestion-controls">
+           <div class="youtube-connected-status">
+             <span class="icon">✅</span>
+             <span class="status-text">YouTube Connected</span>
+             <button on:click={handleDisconnect} class="disconnect-button" title="Disconnect YouTube Account">×</button>
+           </div>
+           <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleNewIngestion} />
+         </div>
+       {:else}
+         <div class="youtube-connect-prompt">
+           <p>To get started, connect your YouTube account.</p>
+           <ConnectYouTubeButton on:connected={onYouTubeConnected} />
+         </div>
+       {/if}
+     </p>
+     
+
+      {#if $videoStatus}
+        <div class="processing-section">
+          <div class="workflow-controls">
+            <h3 class="text-lg font-semibold text-gray-700">Live Workflow</h3>
+            <button class="button-secondary" on:click={() => { isRestartMode = !isRestartMode; }}>
+              {#if isRestartMode}
+                Cancel
+              {:else}
+                Restart From Stage...
+              {/if}
+            </button>
           </div>
-          <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleNewIngestion} />
-        </div>
-      {:else}
-        <div class="youtube-connect-prompt">
-          <p>To get started, connect your YouTube account.</p>
-          <ConnectYouTubeButton on:connected={onYouTubeConnected} />
+           {#if isRestartMode}
+            <p class="restart-prompt">Select a completed stage to restart from.</p>
+          {/if}
+          <Workflow 
+            bind:isRestartMode 
+            {stages}
+            on:retrigger={handleRetrigger} 
+          />
+          <StatusLog />
         </div>
       {/if}
-    {/if}
-  </p>
-   
-
-    {#if $videoStatus}
-      <div class="processing-section">
-        <div class="workflow-controls">
-          <h3 class="text-lg font-semibold text-gray-700">Live Workflow</h3>
-          <button class="button-secondary" on:click={() => { isRestartMode = !isRestartMode; }}>
-            {#if isRestartMode}
-              Cancel
-            {:else}
-              Restart From Stage...
-            {/if}
-          </button>
-        </div>
-         {#if isRestartMode}
-          <p class="restart-prompt">Select a completed stage to restart from.</p>
-        {/if}
-        <Workflow 
-          bind:isRestartMode 
-          {stages}
-          on:retrigger={handleRetrigger} 
-        />
-        <StatusLog />
-      </div>
-    {/if}
+    </div>
   </div>
-</div>
+{:else}
+  <div class="home-container" style="padding-bottom: 0; min-height: 0;">
+    <div class="content-column" style="min-height: initial; text-align: center;">
+        <h1 class="mb-2">Amplify your message.</h1>
+        <p class="mb-4">
+          Paste a YouTube link to transform a single video into a complete,
+          multi-platform marketing campaign, orchestrated by autonomous AI agents.
+        </p>
+    </div>
+  </div>
+  <SystemFlow showTitle={false} />
+{/if}
 
 <style>
   .home-container {

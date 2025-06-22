@@ -1,9 +1,15 @@
+<script lang="ts">
+  export let showTitle = true;
+</script>
+
 <div class="flow-container">
-    <header>
-        <h1>Agent Processing Workflow</h1>
-        <p>This page outlines the step-by-step process our AI agents follow to transform a video URL into a complete set of marketing assets.</p>
-        <a href="#/dashboard" class="button-secondary">← Back to Dashboard</a>
-    </header>
+    {#if showTitle}
+      <header>
+          <h1>Agent Processing Workflow</h1>
+          <p>This page outlines the step-by-step process our AI agents follow to transform a video URL into a complete set of marketing assets.</p>
+          <a href="#/dashboard" class="button-secondary">← Back to Dashboard</a>
+      </header>
+    {/if}
 
     <div class="workflow">
         

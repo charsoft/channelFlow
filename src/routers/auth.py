@@ -76,7 +76,8 @@ async def google_login(request: GoogleLoginRequest):
         idinfo = id_token.verify_oauth2_token(
             request.token,
             google_requests.Request(),
-            os.getenv("GOOGLE_CLIENT_ID")
+            os.getenv("GOOGLE_CLIENT_ID"),
+            clock_skew_in_seconds=5
         )
 
         user_id = idinfo['sub']
