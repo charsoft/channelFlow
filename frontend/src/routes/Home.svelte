@@ -201,12 +201,12 @@
             const currentIndex = agentNames.indexOf(currentAgentName);
             const thisIndex = agentNames.indexOf(detail.name);
 
-            if (detail.name === currentAgentName) {
-                status = currentState;
-                description = statusMessage || `Task is ${currentState}.`;
-            } else if (thisIndex < currentIndex) {
-                status = 'completed';
-                description = `Stage ${detail.name} completed successfully.`;
+            if (thisIndex < currentIndex) {
+              status = 'completed';
+              description = `Stage ${detail.name} completed successfully.`;
+            } else if (thisIndex === currentIndex) {
+              status = currentState;
+              description = statusMessage || `Task is ${currentState}.`;
             }
         }
     }
@@ -240,7 +240,7 @@
         Paste a YouTube link to transform a single video into a complete,
         multi-platform marketing campaign, orchestrated by autonomous AI agents.
       </p>
-    <p class="mb-6">
+    <div class="mb-6">
        {#if youtubeConnectionStatus.isConnected}
          <div class="ingestion-controls">
            <div class="youtube-connected-status">
@@ -254,8 +254,14 @@
              <button on:click={handleDisconnect} class="disconnect-button" title="Disconnect YouTube Account">×</button>
            </div>
          
-           <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleNewIngestion} />
-          
+           <div class="ingestion-container">
+             <IngestForm on:new-ingestion={handleNewIngestion} />
+             {#if currentVideoId}
+               <button class="button-secondary view-details-btn" on:click={() => push(`/video/${currentVideoId}`)}>
+                 View Details
+               </button>
+             {/if}
+           </div>
          </div>
           
        {:else}
@@ -264,7 +270,7 @@
            <ConnectYouTubeButton on:connected={onYouTubeConnected} />
          </div>
        {/if}
-     </p>
+     </div>
      
       {#if $videoStatus}
         <div class="processing-section">
@@ -407,6 +413,17 @@
 .agent-stage-btn:hover {
   background-color: #e5e7eb; /* slightly darker gray */
   transform: translateY(-2px);
+}
+
+.ingestion-container {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.view-details-btn {
+  flex-shrink: 0; /* Prevents the button from shrinking */
+  padding: 0.6rem 1.2rem;
 }
 
 </style>

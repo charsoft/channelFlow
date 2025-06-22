@@ -6,6 +6,9 @@
 
   
   $: youtubeUrl = $videoStatus?.video_id ? 'https://youtu.be/' + $videoStatus.video_id : '';
+  
+  $: videoId = $videoStatus?.video_id;
+  $: thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : '';
 
   let selectedFile: File | null = null;
   let fileInput: HTMLInputElement;
@@ -43,27 +46,26 @@
         throw new Error(result.detail || 'An unknown error occurred.');
       }
 
-      Swal.fire({
+      // Stop the spinner first
+      isUploading = false;
+
+      // Awaiting the toast ensures it completes before we navigate.
+      await Swal.fire({
         toast: true,
         position: 'top-end',
         icon: 'success',
         title: 'Upload successful! Processing has started.',
         showConfirmButton: false,
-        timer: 4000,
+        timer: 2000, // Shortened timer
         timerProgressBar: true
       });
 
-      // Reset the form for the next upload
-      youtubeUrl = '';
-      selectedFile = null;
-      if (fileInput) {
-        fileInput.value = '';
-      }
+      // Navigate back to the home page to watch the progress
+      push('/');
 
     } catch (error: any) {
-      Swal.fire('Upload Failed', error.message, 'error');
-    } finally {
       isUploading = false;
+      Swal.fire('Upload Failed', error.message, 'error');
     }
   }
 
@@ -91,9 +93,8 @@
       Swal.fire('Cleanup Successful', `Cleaned up ${result.cleaned_count} orphaned documents.`, 'success');
 
     } catch (error: any) {
-      Swal.fire('Cleanup Failed', error.message, 'error');
-    } finally {
       isCleaning = false;
+      Swal.fire('Cleanup Failed', error.message, 'error');
     }
   }
 
@@ -105,12 +106,19 @@
 
       <div class="tool-section">
           <h2>Manual Video Upload</h2>
-          <p>
-              This tool allows you to manually upload a video file and associate it with a YouTube URL.
-              This is a workaround for cases where the automated download from YouTube fails.
-              The system will use your uploaded file instead of trying to download it.
-          </p>
+          <div class="upload-instructions">
+             <em> This tool is a workaround for when the automated YouTube download fails. 
+              Too many automated requests can make Google think we're a bot, so 
+              this manual process is a more reliable approach for this demo. 
+              <strong>Please download the video from your YouTube account, then upload it here.</strong></em>
+          <p> Here's a preview... the system will then process your manually uploaded file. 🙏🤓 </p>
+            </div>
           <form on:submit|preventDefault={handleUpload} class="upload-form">
+              {#if thumbnailUrl}
+                <div class="thumbnail-preview">
+                  <img src={thumbnailUrl} alt="YouTube Video Thumbnail" />
+                </div>
+              {/if}
               <div class="form-group">
                   <label for="youtube-url">YouTube Video URL</label>
                   <input type="url" id="youtube-url" bind:value={youtubeUrl} placeholder="https://www.youtube.com/watch?v=..." required>
@@ -118,6 +126,7 @@
               <div class="form-group">
                   <label for="video-file">Video File (.mp4, .mov)</label>
                   <input type="file" id="video-file" bind:this={fileInput} on:change={(e) => selectedFile = e.currentTarget.files ? e.currentTarget.files[0] : null} accept="video/mp4,video/quicktime,video/x-m4v,video/mov" required>
+                  <small>The original filename does not matter; it will be renamed automatically.</small>
               </div>
               <button type="submit" class="button-primary" disabled={isUploading}>
                   {#if isUploading}
@@ -212,6 +221,10 @@
     line-height: 1.6;
   }
 
+  .upload-instructions {
+    font-size: 1.05rem;
+  }
+
   .upload-form {
     display: flex;
     flex-direction: column;
@@ -230,6 +243,12 @@
     margin-bottom: 0.5rem;
     font-weight: 500;
     color: var(--text-color-primary);
+  }
+
+  .form-group small {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-color-secondary);
   }
 
   .form-group input {
@@ -297,6 +316,18 @@
 
   @keyframes spin {
     to { transform: rotate(360deg); }
+  }
+
+  .thumbnail-preview {
+    margin-bottom: 1.5rem;
+    text-align: center;
+  }
+
+  .thumbnail-preview img {
+    max-width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    border: 1px solid var(--border-color);
   }
 
 </style>

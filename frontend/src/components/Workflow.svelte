@@ -53,7 +53,7 @@
                     {#if isRestartMode}
                         <td class="action-cell">
                           {#if stage.status === 'active'}
-                          <img src={botWorkingGif} alt="Bot Working" class="bot-working-gif" />
+                          <img src={botWorkingGif} alt="Bot Working" class="bot-working-gif half-size"/>
                           {/if}
                             {#if stage.status === 'completed'}
                                 <button class="retrigger-button" on:click={() => handleStepClick(stage)}>
@@ -69,6 +69,11 @@
 </div>
 
 <style>
+
+.half-size {
+  width: 75%;
+  height: auto;
+}
 .workflow-table-container {
   overflow-x: auto;
   background-color: #ffffff;

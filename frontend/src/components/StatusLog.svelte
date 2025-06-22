@@ -20,7 +20,12 @@
 </script>  
 
 <div class="status-log-container">
-  <h4>Processing Log for {$videoStatus?.video_id} <button on:click={() => goToMaintenance()}>Maintenance Page</button></h4>
+  <h4>
+    Processing Log for {$videoStatus?.video_id}
+    {#if $videoStatus?.status && $videoStatus.status.includes('failed')}
+      <button on:click={goToMaintenance}>Maintenance Page</button>
+    {/if}
+  </h4>
   {#if dedupedHistory.length === 0}
     <p>Waiting for processing to start...</p>
   {:else}

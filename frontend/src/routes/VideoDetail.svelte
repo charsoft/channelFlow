@@ -4,6 +4,7 @@
   import { marked } from 'marked';
 
   import { listenForUpdates } from '../lib/api';
+  import { videoStatus } from '../lib/stores';
   import { sanitizeTitleForFilename } from '../lib/utils';
   import ShortsCandidates from '../components/ShortsCandidates.svelte';
   import WorkflowManager from '../components/WorkflowManager.svelte';
@@ -32,6 +33,16 @@
   let availableImages: any[] = [];
   let isImageSelectorVisible = false;
   let selectedNewsletterImage = '';
+  let isWorkflowVisible = true; // New state for collapsibility
+
+  const stagesMetadata = [
+    { name: 'Ingestion', description: 'Downloading & preparing the video file.', longDescription: 'The system is downloading the video from its source URL and preparing it for the pipeline by placing it in cloud storage.' },
+    { name: 'Transcription', description: 'Converting audio to text.', longDescription: 'Using an AI model to transcribe the spoken audio from the video into a text document. This forms the basis for all other content.' },
+    { name: 'Analysis', description: 'Identifying key topics and clips.', longDescription: 'The transcript is being analyzed by an AI to identify the main topics, key concepts, and potential segments suitable for short-form video clips.' },
+    { name: 'Copywriting', description: 'Generating social media posts.', longDescription: 'AI is generating various pieces of marketing copy, such as posts for social media platforms and email newsletters, based on the video content.' },
+    { name: 'Visuals', description: 'Creating thumbnail images.', longDescription: 'AI is generating a set of compelling thumbnail images that are thematically aligned with the video content to attract viewers.' },
+    { name: 'Publishing', description: 'Finalizing and marking as complete.', longDescription: 'All assets have been generated. In a real-world scenario, this step would upload the content to its final destination (e.g., YouTube). Here, it marks the process as complete.' }
+  ];
 
   // This is a placeholder now, as the WorkflowManager handles the logic.
   const workflowStages = [];
@@ -47,7 +58,20 @@
   // --- Lifecycle ---
   onMount(() => {
     loadVideoDetails();
+    if (params.id) {
+      const eventSource = listenForUpdates(params.id);
+      // Return a cleanup function to close the connection when the component is destroyed
+      return () => {
+        eventSource?.close();
+      };
+    }
   });
+
+  // This reactive statement is the key: it updates our local videoData
+  // whenever the videoStatus store (which is updated by the SSE) changes.
+  $: if ($videoStatus && $videoStatus.video_id === params.id) {
+    videoData = { ...videoData, ...$videoStatus };
+  }
 
   $: if (activeTab === 'copy') {
     loadSubstackContent();
@@ -335,8 +359,15 @@
 
     <!-- Workflow Visualization -->
     <div class="section">
-        <h2 class="section-title">Workflow Status</h2>
-        <WorkflowManager video={videoData} on:retrigger={handleRetrigger} />
+        <div class="section-header">
+            <h2 class="section-title">Workflow Status</h2>
+            <button class="toggle-button" on:click={() => isWorkflowVisible = !isWorkflowVisible}>
+                {isWorkflowVisible ? 'Hide' : 'Show'}
+            </button>
+        </div>
+        {#if isWorkflowVisible}
+            <WorkflowManager video={videoData} stagesMetadata={stagesMetadata} on:retrigger={handleRetrigger} />
+        {/if}
     </div>
 
     <!-- Tabs for different sections -->
@@ -599,13 +630,19 @@
 .tab-content.active {
     display: block;
 }
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
 .detail-section {
     margin-bottom: 3rem;
 }
-.detail-section h2 {
+.detail-section h2, .section-title {
     font-size: 1.75rem;
     font-weight: 700;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0;
     color: #374151;
 }
 .section-description {
@@ -1016,6 +1053,21 @@ select {
     height: 30px;
     animation: spin 1s linear infinite;
     margin: 2rem auto;
+}
+
+.toggle-button {
+  background: none;
+  border: 1px solid #d1d5db;
+  color: #475569;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.toggle-button:hover {
+    background-color: #f3f4f6;
 }
 </style>
 
