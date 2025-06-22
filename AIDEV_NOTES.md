@@ -14,6 +14,26 @@ Core User Journeys
     - the actions button should allow the user to reprocess the video. If the user clicks "reprocess", then immediately, the user should navigate to the home page, where the youtube link will automatically populate the textbox, and the user should be told to click the submit button.
        - at this point the usual functionality will ensue. The workflow will notice that the video exists, and will then light ujp, offering them the option to restart any stage, similar typical flow.
 
+- Video Details (a tabular interface)
+    - Tab 1 - Overview with the Youtube IFrame and generated copy
+    - Tab 2 - Generated Images (refactored and now the code is in /components/GeneratedImages)
+       This tab has a two sections.
+       Section 1 - show the images 
+        - the collection of cards is a blend between those that the user generated initially and those that the user will generate "on the fly"
+        - the card has a thumbnail image and in the footer, there is a Preview button. 
+        - These images come from the firestore object for the video in two different two different collections: 
+            - generated_thumbnails[] - object with two fields {gcs_uri, prompt}
+            - on_demand_thumbnails[] - object with three fields {created_at: datetimestamp, gcs_uri, prompt}
+        - When the user clicks teh Preview button, the image selected will show the image in a modal, with the content from the facebook/social media generated copy. 
+            - this modal allows the user to click "download & Copy", which will download the image to their local filesystem, and copy the text into their clipboard for easy pasting into their social media account.
+            - the system should tell the user that coming soon, they will be able to push directly to their social media streams so they can "stay in the flow"
+       Section 2 - allow the user to generate new images on the fly
+        - There is a button titled "Generate new prompts"
+        - when pressed, the system calls the visuals agent and asks for two new prompts.
+        - The system returns the two prompts in sections, where the usder can click to generate an IMAGE from the prompt
+        - In this interface, the user can select a different Imagen model so that they can experience the different ways that imagen works.
+
+
 
 Imagen Models as of today:
  -imagen-3.0-generate-002

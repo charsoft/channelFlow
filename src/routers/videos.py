@@ -493,30 +493,47 @@ async def get_videos(current_user: dict = Depends(get_current_user)):
 @router.get("/api/video/{video_id}")
 async def get_video(video_id: str):
     """
-    Retrieves details for a single video.
+    Retrieves a single video by its ID.
+    Converts GCS URIs to signed URLs for frontend display.
     """
     video_doc_ref = db.collection("videos").document(video_id)
     doc = await video_doc_ref.get()
-
     if not doc.exists:
-        raise HTTPException(status_code=404, detail="Video not found.")
-
-    video_data = serialize_firestore_doc(doc.to_dict())
-    video_data["video_id"] = doc.id
+        return JSONResponse(status_code=404, content={"message": "Video not found"})
     
-    # Generate signed URLs for any GCS URIs
-    if image_urls := video_data.get("image_urls"):
-        video_data["image_urls"] = [_get_signed_url(url) for url in image_urls if url]
-        
-    # Convert on_demand_thumbnails gcs_uris to signed URLs and datetimes
-    if "on_demand_thumbnails" in video_data and video_data["on_demand_thumbnails"]:
-        for item in video_data["on_demand_thumbnails"]:
-            if "gcs_uri" in item:
-                item["image_url"] = _get_signed_url(item["gcs_uri"])
-            if "created_at" in item and isinstance(item["created_at"], datetime):
-                item["created_at"] = item["created_at"].isoformat()
+    video_data = serialize_firestore_doc(doc.to_dict())
+    
+    # --- Generate Signed URLs ---
+    # For generated thumbnails
+    if thumbnails := video_data.get("generated_thumbnails"):
+        video_data["generated_thumbnails"] = [
+            {**thumb, "image_url": _get_signed_url(thumb.get("gcs_uri"))}
+            for thumb in thumbnails if thumb.get("gcs_uri")
+        ]
+    
+    # For quote visuals
+    if quotes := video_data.get("quote_visuals"):
+        video_data["quote_visuals"] = [
+            {**quote, "image_url": _get_signed_url(quote.get("gcs_uri"))}
+            for quote in quotes if quote.get("gcs_uri")
+        ]
+    
+    # For on-demand thumbnails (legacy support)
+    if on_demand_thumbs := video_data.get("on_demand_thumbnails"):
+        video_data["on_demand_thumbnails"] = [
+            {**thumb, "image_url": _get_signed_url(thumb.get("gcs_uri"))}
+            for thumb in on_demand_thumbs if thumb.get("gcs_uri")
+        ]
 
-    return {"video": video_data}
+    # For original transcript download link
+    if transcript_uri := video_data.get("transcript_gcs_uri"):
+        video_data["transcript_url"] = _get_signed_url(transcript_uri)
+
+    # For Substack download link
+    if substack_uri := video_data.get("substack_gcs_uri"):
+        video_data["substack_url"] = _get_signed_url(substack_uri)
+
+    return JSONResponse(status_code=200, content={"video": video_data})
 
 @router.delete("/api/videos/{video_id}")
 async def delete_video(video_id: str, current_user: dict = Depends(get_current_user)):

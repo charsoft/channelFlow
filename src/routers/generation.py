@@ -46,8 +46,9 @@ def get_visuals_agent():
     gcs_bucket_name = os.getenv("GCS_BUCKET_NAME")
     gemini_api_key = os.getenv("GEMINI_API_KEY")
     imagen_model_name = os.getenv("IMAGEN_MODEL_NAME", "imagegeneration@006")
+    gemini_model_name = os.getenv("GEMINI_MODEL_NAME")
 
-    if not all([gcp_project_id, gcp_region, gcs_bucket_name, gemini_api_key]):
+    if not all([gcp_project_id, gcp_region, gcs_bucket_name, gemini_api_key, gemini_model_name]):
         raise HTTPException(status_code=500, detail="Missing critical environment variables for VisualsAgent.")
 
     visuals_agent = VisualsAgent(
@@ -55,7 +56,8 @@ def get_visuals_agent():
         location=gcp_region, 
         bucket_name=gcs_bucket_name, 
         api_key=gemini_api_key, 
-        model_name=imagen_model_name
+        model_name=imagen_model_name,
+        gemini_model_name=gemini_model_name
     )
     return visuals_agent
 

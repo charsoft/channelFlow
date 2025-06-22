@@ -3,9 +3,14 @@
   import Swal from 'sweetalert2';
   import { marked } from 'marked';
 
-  import { listenForUpdates } from '../lib/api';
+ 
+
+  import { listenForUpdates, retriggerStage } from '../lib/api';
   import { videoStatus } from '../lib/stores';
   import { sanitizeTitleForFilename } from '../lib/utils';
+      // ... other imports
+    
+  import GeneratedImages from '../components/GeneratedImages.svelte'; // <-- ADD THIS LINE
   import ShortsCandidates from '../components/ShortsCandidates.svelte';
   import WorkflowManager from '../components/WorkflowManager.svelte';
 
@@ -16,17 +21,10 @@
   let isLoading = true;
   let errorMessage = '';
   let activeTab = 'overview';
-  let isImageModalVisible = false;
+
   let modalImageUrl = '';
-  let selectedModel = 'imagen-4.0-generate-preview-06-06'; // Default model
-  let newPrompts: string[] = [];
-  let promptsLoader = false;
-  let isEditingPrompts = false;
-  let editedPrompts: { [key: number]: string } = {};
-  let promptGenerationStates: { [key: number]: { selectedModel: string; isGenerating: boolean } } = {};
   let substackHtml = '';
   let isLoadingSubstack = false;
-  let processedNewsletterHtml = '';
   
   let newsletterPreImageHtml = '';
   let newsletterPostImageHtml = '';
@@ -34,6 +32,7 @@
   let isImageSelectorVisible = false;
   let selectedNewsletterImage = '';
   let isWorkflowVisible = true; // New state for collapsibility
+  let isImageModalVisible = false;
 
   const stagesMetadata = [
     { name: 'Ingestion', description: 'Downloading & preparing the video file.', longDescription: 'The system is downloading the video from its source URL and preparing it for the pipeline by placing it in cloud storage.' },
@@ -46,14 +45,6 @@
 
   // This is a placeholder now, as the WorkflowManager handles the logic.
   const workflowStages = [];
-
-  const imagenModels = [
-    'imagen-4.0-generate-preview-06-06',
-    'imagen-4.0-ultra-generate-preview-06-06',
-    'imagen-4.0-fast-generate-preview-06-06',
-    'imagen-3.0-generate-002',
-    'imagen-3.0-fast-generate-001'
-  ];
 
   // --- Lifecycle ---
   onMount(() => {
@@ -160,201 +151,48 @@
   }
 
   // --- Event Handlers ---
-  function showImageModal(imageUrl: string) {
-    modalImageUrl = imageUrl;
+  function showImageModal(event: CustomEvent) {
+    modalImageUrl = event.detail.imageUrl;
     isImageModalVisible = true;
   }
   
-  async function downloadImage(imageUrl: string, videoTitle: string) {
-      try {
-          const response = await fetch(imageUrl, { cache: 'no-cache' });
-          if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
-          
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = url;
-          const safeTitle = sanitizeTitleForFilename(videoTitle);
-          a.download = `channel_post_${safeTitle}.png`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          a.remove();
-      } catch (err) {
-          console.error('Failed to download image:', err);
-          Swal.fire('Download Error', 'Could not download the image.', 'error');
-      }
-  }
-
-  function showPostPreview(imageUrl: string) {
-    const postContent = videoData?.marketing_copy?.facebook_post;
-    if (!postContent) {
-        Swal.fire('Error', 'Could not find post content.', 'error');
-        return;
-    }
-
-    const plainTextPost = postContent.replace(/<br\s*\/?>/gi, '\n');
-
-    Swal.fire({
-        title: 'Post Preview',
-        html: `
-            <div class="social-preview-content">
-                <img src="${imageUrl}" alt="Post image preview" style="max-width: 100%; border-radius: 8px;">
-                <div class="social-preview-caption">${postContent}</div>
-            </div>
-        `,
-        confirmButtonText: 'Copy Text & Download Image',
-        showCancelButton: true,
-        cancelButtonText: 'Just Close',
-        customClass: { popup: 'social-preview-popup' }
-    }).then((result) => {
-        if (result.isConfirmed) {
-            navigator.clipboard.writeText(plainTextPost).then(() => {
-                downloadImage(imageUrl, videoData.video_title);
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'success',
-                    title: 'Copied & Downloading!',
-                    showConfirmButton: false,
-                    timer: 2500
-                });
-            }).catch(() => {
-                Swal.fire('Error', 'Could not copy text.', 'error');
-            });
-        }
-    });
-  }
-
-  async function handleGeneratePrompts() {
-    if (!videoData?.structured_data?.summary) {
-        Swal.fire('Error', 'Video summary is not available to generate prompts.', 'error');
-        return;
-    }
-    
-    promptsLoader = true;
-    newPrompts = [];
-    promptGenerationStates = {};
-
-    try {
-        const response = await fetch(`/api/video/${params.id}/generate-prompts`, { 
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ context: videoData.structured_data.summary })
-        });
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Unknown server error' }));
-            throw new Error(errorData.detail || `Server error: ${response.statusText}`);
-        }
-        const data = await response.json();
-        newPrompts = data.prompts || [];
-        // Initialize state for each new prompt
-        newPrompts.forEach((_, index) => {
-            promptGenerationStates[index] = {
-                selectedModel: 'imagen-4.0-generate-preview-06-06', // Default model
-                isGenerating: false
-            };
-        });
-    } catch (error: any) {
-        console.error('Failed to generate new prompts:', error);
-        Swal.fire('Error', `Could not generate prompts: ${error.message}`, 'error');
-    } finally {
-        promptsLoader = false;
-    }
-  }
   
-  function startEditing() {
-      editedPrompts = {}; // Reset edits
-      isEditingPrompts = true;
-  }
-
-  function cancelEditing() {
-      isEditingPrompts = false;
-  }
-
-  async function handleGenerateImage(prompt: string, index: number) {
-      const state = promptGenerationStates[index];
-      if (!state) return;
-
-      state.isGenerating = true;
-
-      try {
-          const response = await fetch(`/api/video/${params.id}/generate-image`, {
-              method: 'POST',
-              headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({ prompt: prompt, model_name: state.selectedModel })
-          });
-
-          if (!response.ok) throw new Error('Failed to generate image');
-          
-          const newImage = await response.json();
-          
-          // Add the new thumbnail to the list for immediate display
-          videoData.on_demand_thumbnails = [...(videoData.on_demand_thumbnails || []), newImage];
-          
-          // Remove the prompt from the list once used
-          newPrompts = newPrompts.filter((_, i) => i !== index);
-
-      } catch (error) {
-          console.error("On-demand thumbnail generation failed:", error);
-          Swal.fire('Error', 'Image generation failed.', 'error');
-      } finally {
-          state.isGenerating = false;
+  function handleNewOnDemandImage(event: CustomEvent) {
+    const newImage = event.detail;
+    if (videoData && videoData.structured_data) {
+      if (!videoData.structured_data.on_demand_thumbnails) {
+        videoData.structured_data.on_demand_thumbnails = [];
       }
-  }
-
-  function selectImageForNewsletter(imageUrl: string) {
-    selectedNewsletterImage = imageUrl;
-    isImageSelectorVisible = false;
-  }
-
-  // --- API Calls ---
-  async function retriggerStage(stage: string, videoId: string) {
-    try {
-      const response = await fetch('/api/re-trigger', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Assuming you have a way to get the auth token
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
-        body: JSON.stringify({ video_id: videoId, stage: stage })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to re-trigger stage.');
-      }
-
-      const result = await response.json();
-      Swal.fire('Success', result.message, 'success');
-      // The SSE connection will automatically update the status display
-    } catch (error: any) {
-      Swal.fire('Error', error.message, 'error');
+      videoData.structured_data.on_demand_thumbnails.push(newImage);
+      // Trigger Svelte's reactivity
+      videoData = videoData;
     }
   }
 
-  // --- Event Handlers ---
-  function handleRetrigger(event: any) {
-    const { stage } = event.detail;
-    if (videoData?.video_id && stage) {
-      retriggerStage(stage, videoData.video_id);
-    }
+  function handleTabChange(e: any) {
+    activeTab = e.detail.id;
   }
+
 </script>
 
 <svelte:window on:keydown={handleKeydown}/>
 
 {#if isLoading}
-  <div class="loader"></div>
+  <div class="loader-container"><div class="loader"></div></div>
 {:else if errorMessage}
   <p class="error-message">{errorMessage}</p>
 {:else if videoData}
-<div class="container">
+  <div class="video-header">
+    <div class="header-content">
+      <h1 id="video-title-placeholder">{videoData.video_title || 'Untitled Video'}</h1>
+      <span class="status-badge-lg-{getStatusClass(videoData.status)}">{videoData.status_message}</span>
+    </div>
+  </div>
+
+  <div class="container">
     <div class="video-header">
         <h1 class="video-title">{videoData.video_title}</h1>
-        <span class="status-badge-lg {getStatusClass(videoData.status)}">{videoData.status_message}</span>
+        <span class="status-badge-lg-{getStatusClass(videoData.status)}">{videoData.status_message}</span>
     </div>
 
     <!-- Workflow Visualization -->
@@ -366,7 +204,9 @@
             </button>
         </div>
         {#if isWorkflowVisible}
-            <WorkflowManager video={videoData} stagesMetadata={stagesMetadata} on:retrigger={handleRetrigger} />
+            <WorkflowManager
+              stages={videoData.stages}
+            />
         {/if}
     </div>
 
@@ -403,59 +243,15 @@
     {/if}
     
     {#if activeTab === 'images'}
-    <div class="tab-content active">
-         <div class="detail-section">
-            <h2>Generated Thumbnails</h2>
-            <p class="section-description">Thumbnails generated by the agent. Click an image to view it in full size or preview the post.</p>
-            <div class="thumbnails-grid">
-                {#each [...(videoData.image_urls || []), ...(videoData.on_demand_thumbnails || [])] as thumb}
-                    {@const imageUrl = typeof thumb === 'string' ? thumb : thumb.image_url}
-                    <div class="thumbnail-item">
-                        <button type="button" class="thumbnail-image-wrapper" on:click={() => showImageModal(imageUrl)}>
-                            <img src={imageUrl} alt="Generated visual">
-                        </button>
-                        <div class="thumbnail-footer">
-                            <span><button class="button-secondary preview-post-btn" on:click|stopPropagation={() => showPostPreview(imageUrl)}>
-                                Preview Post
-                            </button></span>
-                            <button class="button delete-img" aria-label="Delete" >&times;</button>
-                        </div>
-                    </div>
-                {/each}
-            </div>
-        </div>
-        
-        <div class="detail-section">
-            <h2>On-Demand Generation</h2>
-            <p class="section-description">First, generate a set of prompts based on the video's summary. Then, for any prompt you like, select an image model and generate a new visual.</p>
-            <div class="on-demand-controls">
-                 <button class="button-primary" on:click={handleGeneratePrompts} disabled={promptsLoader}>
-                    {#if promptsLoader}Generating Prompts...{:else}Generate New Prompts{/if}
-                </button>
-            </div>
-
-            <ul class="new-prompts-list">
-                {#each newPrompts as prompt, index (prompt)}
-                    {@const state = promptGenerationStates[index]}
-                     <li class:generating={state?.isGenerating}>
-                        <span class="prompt-text">{prompt}</span>
-                        <div class="prompt-controls">
-                             <div class="control-group">
-                                <select bind:value={promptGenerationStates[index].selectedModel} disabled={state?.isGenerating}>
-                                    {#each imagenModels as model}
-                                        <option value={model}>{model.replace(/-generate-preview-\d{2}-\d{2}/, '').replace(/-generate-\d{3}/, '')}</option>
-                                    {/each}
-                                </select>
-                            </div>
-                            <button class="button-secondary generate-image-btn" on:click={() => handleGenerateImage(prompt, index)} disabled={state?.isGenerating}>
-                                {#if state?.isGenerating}Generating...{:else}Generate Image{/if}
-                            </button>
-                        </div>
-                    </li>
-                {/each}
-            </ul>
-        </div>
-    </div>
+        <GeneratedImages
+          videoId={params.id}
+          videoTitle={videoData.title}
+          generatedThumbnails={videoData.structured_data?.generated_thumbnails || []}
+          onDemandThumbnails={videoData.structured_data?.on_demand_thumbnails || []}
+          facebookPost={videoData.structured_data?.facebook_post || ''}
+          on:newOnDemandImage={handleNewOnDemandImage}
+          on:showImageModal={showImageModal}
+        />
     {/if}
 
     {#if activeTab === 'copy'}
@@ -539,28 +335,6 @@
     <img class="modal-content-image" src={modalImageUrl} alt="Full size generated visual">
 </div>
 {/if}
-
-<!-- Image Selector Modal -->
-{#if isImageSelectorVisible}
-<div class="modal-overlay" role="dialog" aria-modal="true" on:click={() => isImageSelectorVisible = false}>
-    <div class="modal-content" role="document" on:click|stopPropagation>
-        <div class="modal-header">
-            <h3>Select an Image</h3>
-            <button type="button" class="modal-close-button" on:click={() => isImageSelectorVisible = false}>&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="thumbnails-grid">
-                 {#each availableImages as imageUrl}
-                    <button class="thumbnail-selector" on:click={() => selectImageForNewsletter(imageUrl)}>
-                        <img src={imageUrl} alt="Selectable thumbnail">
-                    </button>
-                 {/each}
-            </div>
-        </div>
-    </div>
-</div>
-{/if}
-
 
 <style>
 /* Base Layout */

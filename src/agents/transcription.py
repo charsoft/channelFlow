@@ -279,23 +279,36 @@ class TranscriptionAgent:
     def _parse_transcript_response(self, response) -> dict:
         transcript_data = {"full_transcript": "", "segments": []}
         full_text_parts = []
+        
+        # New robust parsing logic
         try:
-            for part in response.parts:
-                if hasattr(part, 'speech_to_text') and part.speech_to_text:
-                    for segment in part.speech_to_text:
-                        start_sec = segment.start_offset.total_seconds()
-                        end_sec = segment.end_offset.total_seconds()
-                        text = segment.transcript
-                        transcript_data["segments"].append({"start": start_sec, "end": end_sec, "text": text})
-                        full_text_parts.append(text)
-                elif part.text:
-                    full_text_parts.append(part.text)
-        except (AttributeError, TypeError) as e:
-            print(f"   [Notice] Could not parse detailed segments from response part: {e}")
+            # The entire response might be the text, or it might be in parts.
+            # We prioritize getting the full text from the dedicated attribute first.
+            if hasattr(response, 'text') and response.text:
+                 full_text_parts.append(response.text)
 
-        if not full_text_parts and response.text:
-            transcript_data["full_transcript"] = response.text
-        else:
-            transcript_data["full_transcript"] = " ".join(full_text_parts).strip()
+            # Then, we look for detailed segments if they exist, to enrich the data.
+            if hasattr(response, 'parts') and response.parts:
+                for part in response.parts:
+                    if hasattr(part, 'speech_to_text') and part.speech_to_text:
+                        # If we find segments, we can build a more precise full transcript
+                        # and clear out the one we got from .text
+                        if full_text_parts:
+                            full_text_parts = [] 
+                        for segment in part.speech_to_text:
+                            start_sec = segment.start_offset.total_seconds()
+                            end_sec = segment.end_offset.total_seconds()
+                            text = segment.transcript
+                            transcript_data["segments"].append({"start": start_sec, "end": end_sec, "text": text})
+                            full_text_parts.append(text)
+        except Exception as e:
+            print(f"   [Warning] An unexpected error occurred during transcript parsing: {e}")
 
+        if not full_text_parts:
+            print(f"   [Warning] Could not extract any transcript text from the response: {response}")
+        
+        if not transcript_data["segments"]:
+            print("   [Notice] Detailed segments with timestamps were not available in the response.")
+
+        transcript_data["full_transcript"] = " ".join(full_text_parts).strip()
         return transcript_data

@@ -16,15 +16,16 @@
     longDescription: string;
   }[] = [];
 
+  let restartingStage: string | null = null;
   const dispatch = createEventDispatcher();
 
-  function handleStepClick(stage: { name: string; status: string }) {
-    if (isRestartMode && stage.status === 'completed') {
-      dispatch('retrigger', { stage: stage.name });
-    }
+  function handleRetrigger(stage: { name: string; status: string }) {
+    if (restartingStage) return; // Prevent multiple clicks
+    restartingStage = stage.name.toLowerCase();
+    dispatch('retrigger', { stage: stage.name });
+    // The loading state will be reset automatically when the parent component
+    // receives a status update and re-renders this component with a new status.
   }
-  
-
 </script>
 
 <div class="workflow-table-container">
@@ -56,8 +57,21 @@
                           <img src={botWorkingGif} alt="Bot Working" class="bot-working-gif half-size"/>
                           {/if}
                             {#if stage.status === 'completed'}
-                                <button class="retrigger-button" on:click={() => handleStepClick(stage)}>
-                                    Restart
+                                <button 
+                                  class="retrigger-button" 
+                                  on:click={() => handleRetrigger(stage)}
+                                  disabled={restartingStage === stage.name.toLowerCase()}
+                                >
+                                  {restartingStage === stage.name.toLowerCase() ? 'Restarting...' : 'Restart'}
+                                </button>
+                            {/if}
+                            {#if stage.status === 'failed'}
+                                <button 
+                                  class="retrigger-button failed-button" 
+                                  on:click={() => handleRetrigger(stage)}
+                                  disabled={restartingStage === stage.name.toLowerCase()}
+                                >
+                                  {restartingStage === stage.name.toLowerCase() ? 'Retrying...' : 'Retry'}
                                 </button>
                             {/if}
                         </td>
@@ -174,6 +188,17 @@
   background-color: #e5e7eb;
   border-color: #9ca3af;
   transform: translateY(-1px);
+}
+
+.retrigger-button.failed-button {
+  background-color: #fee2e2; /* red-100 */
+  color: #991b1b; /* red-800 */
+  border: 1px solid #fca5a5; /* red-300 */
+}
+
+.retrigger-button.failed-button:hover {
+  background-color: #fecaca; /* red-200 */
+  border-color: #f87171; /* red-400 */
 }
 
 @keyframes pulse {

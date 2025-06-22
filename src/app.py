@@ -139,7 +139,8 @@ async def startup_event():
         location=gcp_region,
         bucket_name=gcs_bucket_name,
         api_key=gemini_api_key,
-        model_name=imagen_model_name
+        model_name=imagen_model_name,
+        gemini_model_name=gemini_model_name
     )
     PublisherAgent(bucket_name=gcs_bucket_name)
     

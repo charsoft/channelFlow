@@ -61,8 +61,8 @@
         timerProgressBar: true
       });
 
-      // Navigate back to the home page to watch the progress
-      push('/');
+      // Navigate to the video detail page to watch the progress
+      push(`/video/${videoId}`);
 
     } catch (error: any) {
       isUploading = false;

@@ -4,7 +4,7 @@ import { accessToken } from './auth';
 import { videoStatus, statusHistory, resetStores } from './stores';
 
 async function getHeaders() {
-    const token = get(accessToken);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
     };
@@ -170,5 +170,34 @@ export async function getUserInfo() {
         throw new Error(`Failed to fetch user info: ${response.statusText}`);
     }
     return await response.json();
+}
+
+export async function generateNewPrompts(videoId: string): Promise<string[]> {
+    const res = await fetch(`/api/video/${videoId}/generate-prompts`, {
+        method: 'POST',
+        headers: await getHeaders(),
+        body: JSON.stringify({}) // Backend doesn't require a body, just the videoId from the URL
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to generate prompts' }));
+        throw new Error(err.detail);
+    }
+    const data = await res.json();
+    return data.prompts || [];
+}
+
+export async function generateOnDemandImage(videoId: string, prompt: string, modelName: string | null): Promise<any> {
+    const res = await fetch(`/api/video/${videoId}/generate-image`, {
+        method: 'POST',
+        headers: await getHeaders(),
+        body: JSON.stringify({ prompt, model_name: modelName })
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to generate image' }));
+        throw new Error(err.detail);
+    }
+    return await res.json();
 }
 
