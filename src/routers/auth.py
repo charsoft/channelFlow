@@ -247,27 +247,18 @@ async def get_youtube_auth_status(current_user: dict = Depends(get_current_user)
     cred_doc = await cred_doc_ref.get()
     
     if cred_doc.exists:
-        try:
-            # We don't need the full credentials here, just to confirm they exist
-            # and are decryptable. A full check would require a refresh token flow.
-            encrypted_creds = cred_doc.to_dict().get("credentials")
-            if not encrypted_creds:
-                return {"isConnected": False}
-                
-            decrypted_creds_json = decrypt_data(encrypted_creds)
-            # A simple check to see if it's valid JSON
-            import json
-            creds_info = json.loads(decrypted_creds_json)
-            
-            # For now, just existing and being decryptable is enough.
-            # We could eventually use the `google.oauth2.credentials.Credentials`
-            # object to check the expiry, but that's more involved.
-            return {"isConnected": True, "email": creds_info.get("id_token", {}).get("email")}
+        cred_data = cred_doc.to_dict()
+        youtube_user_id = cred_data.get("youtube_user_id")
+        
+        if youtube_user_id:
+            youtube_user_doc = await db.collection("users").document(youtube_user_id).get()
+            if youtube_user_doc.exists:
+                youtube_user_data = youtube_user_doc.to_dict()
+                return {
+                    "isConnected": True,
+                    "email": youtube_user_data.get("email")
+                }
 
-        except Exception as e:
-            # If decryption fails or data is corrupt, treat as not connected.
-            print(f"Could not validate stored credentials for user {user_id}: {e}")
-            return {"isConnected": False}
             
     return {"isConnected": False}
 

@@ -2,6 +2,7 @@
   import IngestForm from '../components/IngestForm.svelte';
   import StatusLog from '../components/StatusLog.svelte';
   import Workflow from '../components/Workflow.svelte';
+  import botWorkingGif from '../assets/bot-working-gif.gif';
   import ConnectYouTubeButton from '../components/ConnectYouTubeButton.svelte';
   import { accessToken } from '../lib/auth';
   import { videoStatus } from '../lib/stores';
@@ -37,6 +38,7 @@
 
   // 3) Fired when your ConnectYouTubeButton emits `on:connected`
   function onYouTubeConnected() {
+    console.log('Youtube connection status:', youtubeConnectionStatus);
     refreshConnection();
   }
 
@@ -251,8 +253,11 @@
              </span>
              <button on:click={handleDisconnect} class="disconnect-button" title="Disconnect YouTube Account">×</button>
            </div>
+         
            <IngestForm on:new-ingestion={handleNewIngestion} on:view={handleNewIngestion} />
+          
          </div>
+          <img src={botWorkingGif} alt="Bot Working" class="bot-working-gif" />
        {:else}
          <div class="youtube-connect-prompt">
            <p>To get started, connect your YouTube account.</p>
