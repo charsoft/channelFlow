@@ -25,34 +25,15 @@ class VisualsAgent:
         self.image_model = ImageGenerationModel.from_pretrained(model_name)
         self.storage_client = storage.Client()
         self.bucket_name = bucket_name
+        # Subscribe to CopyReady
         event_bus.subscribe(CopyReady, self.handle_copy_ready)
 
-    async def _generate_and_upload_image(self, prompt: str, video_id: str, index: int, diversity_options: dict = None, model_name: str = None) -> str:
+    async def _generate_and_upload_image(self, prompt: str, video_id: str, index: int) -> str:
         """Generates a single image, uploads it, and returns the GCS URI."""
         
-        # Determine which image model to use
-        image_model_to_use = self.image_model
-        if model_name:
-            print(f"   Using on-demand model: {model_name}")
-            image_model_to_use = ImageGenerationModel.from_pretrained(model_name)
-
-        # Modify prompt based on diversity options
-        if diversity_options:
-            modifiers = []
-            if diversity_options.get("gender"):
-                modifiers.append("diverse genders")
-            if diversity_options.get("ethnicity"):
-                modifiers.append("diverse ethnicities and skin tones")
-            if diversity_options.get("ability"):
-                modifiers.append("people with varying physical abilities")
-            
-            if modifiers:
-                diversity_string = " The image should include " + ", and ".join(modifiers) + "."
-                prompt += diversity_string
-
         print(f"     - Generating image {index}: {prompt[:80]}...")
         response = await asyncio.to_thread(
-            image_model_to_use.generate_images,
+            self.image_model.generate_images,
             prompt=prompt,
             number_of_images=1
         )
@@ -74,58 +55,6 @@ class VisualsAgent:
         gcs_uri = f"gs://{self.bucket_name}/{blob_path}"
         print(f"       Uploaded to {gcs_uri}")
         return gcs_uri
-
-    async def generate_single_image_from_prompt(self, video_id: str, prompt: str, model_name: str = None) -> dict:
-        """
-        Generates a single image and returns a dict with the prompt and the GCS URI.
-        This is used for on-demand generation from the frontend.
-        """
-        index = f"ondemand_{uuid.uuid4()}"
-        image_gcs_uri = await self._generate_and_upload_image(prompt, video_id, index, model_name=model_name)
-        if image_gcs_uri:
-            return {"prompt": prompt, "gcs_uri": image_gcs_uri}
-        return None
-
-    async def _generate_quote_image(self, quote: str, video_id: str, index: int, key_themes: list) -> dict:
-        """Generates a background image for a specific quote."""
-        theme_str = ", ".join(key_themes)
-        prompt = (
-            "Create a visually stunning, abstract, and subtle background image suitable for a quote. "
-            f"The image should be inspired by themes of: {theme_str}. "
-            "It should evoke a feeling of inspiration and insight. Do NOT include any text, letters, or words in the image. "
-            "The style should be elegant and minimalist, with a soft focus and a gentle color palette."
-        )
-        
-        print(f"   - Generating background for quote {index}...")
-        image_gcs_uri = await self._generate_and_upload_image(prompt, video_id, f"quote_{index}")
-        
-        if image_gcs_uri:
-            return {"quote": quote, "gcs_uri": image_gcs_uri}
-        return None
-
-    async def _generate_image_prompts(self, structured_data: dict, substack_gcs_uri: str) -> list[str]:
-        """Generates a list of image prompts using Gemini."""
-        # Download the substack article from GCS to get the hook
-        hook = ""
-        if substack_gcs_uri:
-            try:
-                bucket = self.storage_client.bucket(self.bucket_name)
-                blob_name = substack_gcs_uri.replace(f"gs://{self.bucket_name}/", "")
-                blob = bucket.blob(blob_name)
-                substack_article_content = await asyncio.to_thread(blob.download_as_text)
-                hook = substack_article_content.split('\n')[0]
-            except Exception as e:
-                print(f"   Could not download Substack article to get hook: {e}")
-                hook = structured_data.get("summary", "") # Fallback
-        else:
-            hook = structured_data.get("summary", "")
-
-        # Generate image prompts with Gemini
-        print("   Generating descriptive prompts for image generation...")
-        summary = structured_data.get("summary", "")
-        prompt_generation_prompt = self._build_image_prompt_generator(summary, hook)
-        response = await self.model.generate_content_async(prompt_generation_prompt)
-        return [p.strip() for p in response.text.split('---') if p.strip()]
 
     async def _update_status(self, doc_ref, status: str, message: str, extra_data: dict = None):
         """Helper to update status and message."""
@@ -151,24 +80,7 @@ class VisualsAgent:
             doc = await video_doc_ref.get()
             video_data = doc.to_dict()
 
-            # Check if visuals already exist
-            if video_data.get("status") in ["visuals_generated", "published"]:
-                print(f"   Visuals for '{event.video_title}' already exist. Skipping visuals generation.")
-                visuals_ready_event = VisualsReady(
-                    video_id=event.video_id,
-                    video_title=event.video_title,
-                )
-                await event_bus.publish(visuals_ready_event)
-                return
-
-            # Get the analysis and copy from the document
-            structured_data = video_data.get("structured_data")
-            if not structured_data:
-                raise ValueError("Could not find 'structured_data' in the video document.")
-
             marketing_copy = video_data.get("marketing_copy", {})
-            substack_article_gcs_uri = video_data.get("substack_gcs_uri")
-            
             if not marketing_copy:
                 raise ValueError("Marketing copy not found in Firestore document.")
 
@@ -176,27 +88,26 @@ class VisualsAgent:
             
             # 1. Use Gemini to generate creative prompts for Imagen
             gemini_prompt = self._build_gemini_prompt(event.video_title, marketing_copy)
-            response = await self.model.generate_content_async(gemini_prompt)
+            response = await self.model.generate_content_async(
+                gemini_prompt,
+                generation_config=genai.types.GenerationConfig(response_mime_type="application/json")
+                )
             generated_prompts = json.loads(response.text).get("image_prompts", [])
             print(f"   Generated {len(generated_prompts)} image prompts.")
 
             # 2. Generate images with Imagen
-            image_gcs_uris = []
+            image_uris = []
             if generated_prompts:
                 await self._update_status(video_doc_ref, "generating_visuals", f"Generating {len(generated_prompts)} images with Imagen...")
-                # ... (rest of the logic for generating images)
-                # This part is simplified for brevity. A real implementation would
-                # loop through prompts and call the Imagen API.
                 image_uris = await self.generate_images_from_prompts(
                     prompts=generated_prompts,
                     video_id=event.video_id
                 )
-                image_gcs_uris.extend(image_uris)
-                print(f"   Generated {len(image_gcs_uris)} images and saved to GCS.")
+                print(f"   Generated {len(image_uris)} images and saved to GCS.")
 
             # 3. Save GCS URIs to Firestore
             await video_doc_ref.update({
-                "image_gcs_uris": image_gcs_uris,
+                "image_gcs_uris": image_uris,
                 "status": "visuals_generated",
                 "status_message": "Social media images created."
             })
@@ -210,31 +121,9 @@ class VisualsAgent:
             await event_bus.publish(visuals_ready_event)
 
         except Exception as e:
-            print(f"❌ VisualsAgent Error: {e}")
-            await self._update_status(video_doc_ref, "visuals_failed", "Failed to generate images.", {"error": str(e)})
-
-    def _build_image_prompt_generator(self, summary: str, hook: str) -> str:
-        return f"""
-        You are a creative director. Your job is to generate two distinct, compelling, and highly-descriptive prompts for an AI image generation model (Imagen 2).
-        The goal is to create visuals for a piece of content.
-
-        RULES:
-        - The prompts must NOT contain any words, text, letters, or quotes.
-    
-        - The prompts should be distinct from each other in concept and composition.
-        - Separate the two prompts with '---'. Do not add any other text before or after the prompts.
-
-        Here is the creative brief:
-
-        VIDEO SUMMARY:
-        "{summary}"
-
-        SUBSTACK HOOK:
-        "{hook}"
-
-        Based on this, generate two image prompts.
-        """ 
-      #  - The prompts should describe a visual concept, scene, or metaphor in a photorealistic or artistic style.
+            import traceback
+            print(f"❌ VisualsAgent Error: {e}\n{traceback.format_exc()}")
+            await self._update_status(video_doc_ref, "visuals_failed", f"Failed to generate images: {e}", {"error": str(e)})
 
     async def generate_images_from_prompts(self, prompts: list[str], video_id: str) -> list[str]:
         """Generates multiple images concurrently from a list of prompts."""

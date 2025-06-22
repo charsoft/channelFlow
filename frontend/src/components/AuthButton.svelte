@@ -16,7 +16,9 @@
         user.set(userInfo);
       } catch (error) {
         console.error('Failed to fetch user info:', error);
-        user.set(null);
+        // If we can't get user info, the token is likely invalid or expired.
+        // Clear everything to reset to a clean logged-out state.
+        clearAccessToken(); // This will trigger the else block below
       }
     } else {
       user.set(null);

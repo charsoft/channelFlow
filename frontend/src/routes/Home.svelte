@@ -180,9 +180,13 @@
     'publishing_failed': { agent: 'Publisher',     state: 'failed'    },
   };
 // 2) Derive `stages` reactively from your store + constants:
+  /* This console log is commented out to reduce noise in the browser console.
+     The stream sends data every 2 seconds to keep the connection alive, and this
+     was logging every single message.
   $: if ($videoStatus) {
     console.log('Received video status from backend:', $videoStatus);
   }
+  */
 
   $: stages = agentDetails.map((detail, index) => {
     let status: 'pending' | 'active' | 'completed' | 'failed' = 'pending';
