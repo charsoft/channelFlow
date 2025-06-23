@@ -40,6 +40,8 @@
   }
 
   async function initializeGsi() {
+    console.log('Initializing Google Sign-In...');
+
     try {
       await loadGsiScript();
       
@@ -70,6 +72,8 @@
   }
 
   async function renderGsiButton() {
+    console.log('Rendering GSI button...');
+
     await tick(); // Wait for the DOM to update
     const buttonContainer = document.getElementById('gsi-button-container');
     if (buttonContainer) {
@@ -83,13 +87,12 @@
   }
   
   // Reactive statement to re-initialize GSI or re-render the button if the user logs out.
-  $: if (!$user && clientId && typeof window !== 'undefined') {
-    if (window.google?.accounts?.id) {
-        renderGsiButton();
-    } else {
-        initializeGsi();
-    }
+ onMount(async () => {
+  if (!$user && clientId) {
+    await initializeGsi();
   }
+});
+
 
   function handleLogout() {
     clearAccessToken();

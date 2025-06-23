@@ -3,6 +3,9 @@
     import { link } from 'svelte-spa-router';
     import logoUrl from '../assets/channel-flow-logo.png';
     import AuthButton from './AuthButton.svelte';
+    import { watchAccessToken } from '../lib/authUtils';
+    import { refreshConnection } from '../lib/api';
+
 
     let googleClientId: string | null = null;
 
@@ -12,6 +15,8 @@
             if (!res.ok) throw new Error('Failed to fetch API config');
             const config = await res.json();
             googleClientId = config.google_client_id;
+               // 🧠 Start watching the token once the header loads
+      watchAccessToken(refreshConnection);
         } catch (error) {
             console.error('Error fetching config in Header:', error);
         }

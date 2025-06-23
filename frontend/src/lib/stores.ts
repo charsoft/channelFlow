@@ -6,7 +6,9 @@ import { writable } from 'svelte/store';
  * The value is null if no video is being processed.
  */
 export const videoStatus = writable<any>(null);
-
+export const youtubeConnectionStatus = writable<{ isConnected: boolean; email?: string }>({
+    isConnected: false
+});
 /**
  * Stores a running list of all status objects received for the active video.
  * Used for displaying a historical log.

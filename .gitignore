@@ -32,7 +32,7 @@ firebase.log
 
 #keys
 service_account.*.json
-
+src/service_account.*.json
 terraform/terraform.tfvars
 
 # Sensitive files

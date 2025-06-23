@@ -2,6 +2,7 @@
 import { get } from 'svelte/store';
 import { accessToken } from './auth';
 import { videoStatus, statusHistory, resetStores } from './stores';
+import { youtubeConnectionStatus } from './stores';
 
 async function getHeaders() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
@@ -113,6 +114,18 @@ export async function checkYouTubeConnection(): Promise<{ isConnected: boolean; 
     }
     return await response.json();
 }
+
+
+
+export async function refreshConnection() {
+    try {
+        const result = await checkYouTubeConnection();
+        youtubeConnectionStatus.set(result);
+    } catch {
+        youtubeConnectionStatus.set({ isConnected: false });
+    }
+}
+
 
 export async function exchangeAuthCode(code: string): Promise<void> {
     const res = await fetch('/api/oauth/exchange-code', {

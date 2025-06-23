@@ -5,7 +5,7 @@
   import botWorkingGif from '../assets/bot-working-gif.gif';
   import ConnectYouTubeButton from '../components/ConnectYouTubeButton.svelte';
   import { accessToken } from '../lib/auth';
-  import { videoStatus } from '../lib/stores';
+  import { videoStatus, youtubeConnectionStatus } from '../lib/stores';
   import { listenForUpdates, checkYouTubeConnection, disconnectYouTube, retriggerStage } from '../lib/api';
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
@@ -14,7 +14,6 @@
   import WorkflowManager from '../components/WorkflowManager.svelte';
 
 
-  let youtubeConnectionStatus: { isConnected: boolean, email?: string } = { isConnected: false };
   let isRestartMode = true;
   let currentVideoId: string | null = null;
   let hasHandledFirstStatus = false;
@@ -223,6 +222,16 @@
         description: description
     };
   });
+
+ let tokenCheckTimeout: ReturnType<typeof setTimeout>;
+$: if ($accessToken) {
+  clearTimeout(tokenCheckTimeout);
+  tokenCheckTimeout = setTimeout(() => {
+    refreshConnection();
+  }, 200); // waits 200ms before calling refreshConnection
+}
+
+
 
  // --- DEBUG LOGGING: STAGES ARRAY ---
 ///  $: if (stages && stages.length > 0) {
