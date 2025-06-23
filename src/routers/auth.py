@@ -193,25 +193,53 @@ async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(g
         creds = flow.credentials
 
         # Get user info from the new credentials to ensure we're using the correct user ID
-        try:
-            idinfo = id_token.verify_oauth2_token(
-                creds.id_token, google_requests.Request(), client_id, clock_skew_in_seconds=5)
-            youtube_user_id = idinfo['sub']
-            
-            # Ensure a user record exists for this Google Account.
-            user_doc_ref = db.collection('users').document(youtube_user_id)
-            user_doc = await user_doc_ref.get()
-            if not user_doc.exists:
-                await user_doc_ref.set({
-                    'email': idinfo.get('email'),
-                    'name': idinfo.get('name'),
-                    'created_at': datetime.utcnow()
-                })
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Could not verify ID token from new credentials: {e}"
-            )
+       
+       # Exchange the authorization code for credentials
+        flow.fetch_token(code=request.code)
+        creds = flow.credentials
+
+        # ✅ Extract the id_token from credentials
+        raw_id_token = creds.id_token
+        if not raw_id_token:
+            raise HTTPException(status_code=400, detail="Missing id_token from credentials")
+
+        # ✅ Decode to get YouTube account email
+        idinfo = id_token.verify_oauth2_token(
+            raw_id_token,
+            google_requests.Request(),
+            client_id
+        )
+        youtube_user_id = idinfo['sub']
+
+        # Ensure a user record exists for this Google Account (YouTube identity)
+        user_doc_ref = db.collection('users').document(youtube_user_id)
+        user_doc = await user_doc_ref.get()
+        if not user_doc.exists:
+            await user_doc_ref.set({
+                'email': idinfo.get('email'),
+                'name': idinfo.get('name'),
+                'created_at': datetime.utcnow()
+            })
+
+            print(f"[🔐 BACKEND] Received code for user: {current_user.get('uid')}")
+            print("[🧠 BACKEND] Saving YouTube credentials to Firestore...")
+
+            # ✅ Encrypt and store both full creds and id_token under LOGGED-IN user's record
+            creds_json = creds.to_json()
+            encrypted_creds = encrypt_data(creds_json.encode())
+            encrypted_id_token = encrypt_data(raw_id_token.encode())
+
+            cred_doc_ref = db.collection("user_credentials").document(current_user["uid"])
+            await cred_doc_ref.set({
+                "credentials": encrypted_creds,
+                "id_token": encrypted_id_token,
+                "youtube_user_id": youtube_user_id
+            })
+
+            print("[✅ BACKEND] YouTube credentials saved.")
+            return {"message": "Successfully connected YouTube account."}
+
+
 
         # Now, link the YouTube credentials to the currently LOGGED-IN user's account
         logged_in_user_id = current_user.get("uid")
@@ -259,10 +287,26 @@ async def get_youtube_auth_status(current_user: dict = Depends(get_current_user)
             import json
             creds_info = json.loads(decrypted_creds_json)
 
-            # For now, just existing and being decryptable is enough.
-            # We could eventually use the `google.oauth2.credentials.Credentials`
-            # object to check the expiry, but that's more involved.
-            return {"isConnected": True, "email": creds_info.get("id_token", {}).get("email")}
+
+
+            try:
+                raw_id_token = creds_info.get("id_token")
+                if not raw_id_token:
+                    raise ValueError("Missing id_token in stored credentials.")
+
+                id_info = id_token.verify_oauth2_token(
+                    raw_id_token,
+                    google_requests.Request(),
+                    os.getenv("GOOGLE_CLIENT_ID")
+                )
+
+                user_email = id_info.get("email")
+            except Exception as e:
+                print(f"[⚠️ ID TOKEN VERIFY FAILED]: {e}")
+                user_email = None
+
+            return {"isConnected": True, "email": user_email}
+            
 
         except Exception as e:
             # If decryption fails or data is corrupt, treat as not connected.

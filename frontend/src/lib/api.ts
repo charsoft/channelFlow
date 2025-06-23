@@ -102,22 +102,25 @@ export async function retriggerStage(videoId: string, stage: string): Promise<vo
 
 export async function checkYouTubeConnection(): Promise<{ isConnected: boolean; email?: string }> {
     const token = localStorage.getItem('accessToken');
-    if (!token) throw new Error("Not authenticated");
+    console.log('[YouTube 🔐] Using token:', token);
+    //if (!token) throw new Error("Not authenticated");
 
     const response = await fetch('/api/auth/youtube/status', {
         headers: { 'Authorization': `Bearer ${token}` }
     });
+    const body = await response.json();
+    console.log('[YouTube 🌐] Status response:', response.status, body);
     if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Request failed' }));
-        throw new Error(errorData.detail);
+        //const errorData = await response.json().catch(() => ({ detail: 'Request failed' }));
+        throw new Error(body.detail);
     }
 
-    const data = await response.json();
+    //const data = await response.json();
 
     // ✅ Update the store
-    youtubeConnectionStatus.set(data);
+    //youtubeConnectionStatus.set(data);
 
-    return data;
+    return body;
 }
 
 

@@ -31,6 +31,7 @@
         try {
           await exchangeAuthCode(response.code);
           Swal.fire('Connected!', 'Your YouTube account is now linked.', 'success');
+          console.log('[YouTube ✅] Dispatching connected event');
           dispatch('connected');
         } catch (err: any) {
           Swal.fire('Oops', err.message || 'Could not connect YouTube.', 'error');

@@ -569,17 +569,5 @@ function initializeGis(clientId) {
         // This will be caught by the app initialization block
         return;
     }
-    tokenClient = google.accounts.oauth2.initCodeClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/youtube.readonly',
-        callback: (response) => {
-            if (response.code) {
-                console.log("GIS Auth Code received:", response.code);
-                exchangeAuthCode(response.code);
-            } else {
-                console.error("GIS response did not contain auth code.", response);
-                Swal.fire('Authorization Failed', 'Could not get authorization from Google.', 'error');
-            }
-        },
-    });
+  
 } 

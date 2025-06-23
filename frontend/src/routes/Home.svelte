@@ -26,12 +26,21 @@
     }
   });
 
+
+  youtubeConnectionStatus.subscribe((status) => {
+    console.log('[🧪 Store Watcher] YouTube status changed:', status);
+  });
+
   // 2) Helper to (re)validate connection state
   async function refreshConnection() {
+    console.log('[🔁 refreshConnection()] Called...');
   try {
     const status = await checkYouTubeConnection();
-    youtubeConnectionStatus.set(status);
-  } catch {
+    console.log('[✅ YouTube Connected]:', status);
+    youtubeConnectionStatus.set(status); // ✅ This updates the store properly
+
+  } catch (err) {
+    console.warn('[❌ YouTube NOT connected]', err);
     youtubeConnectionStatus.set({ isConnected: false });
   }
 }
@@ -40,6 +49,7 @@
   // 3) Fired when your ConnectYouTubeButton emits `on:connected`
   function onYouTubeConnected() {
     console.log('Youtube connection status:', youtubeConnectionStatus);
+     console.log('[YouTube Handler 🧠] Event received in parent');
     refreshConnection();
   }
 
@@ -259,9 +269,11 @@ $: if ($accessToken) {
              <span class="icon">✅</span>
              <span class="status-text">
                YouTube Connected
-               {#if youtubeConnectionStatus.email}
-                 <span class="email-display">({youtubeConnectionStatus.email})</span>
-               {/if}
+              {#if youtubeConnectionStatus.email}
+                  <span class="email-display">({youtubeConnectionStatus.email})</span>
+                {:else}
+                  <span class="email-display">(Connected)</span>
+                {/if}
              </span>
              <button on:click={handleDisconnect} class="disconnect-button" title="Disconnect YouTube Account">×</button>
            </div>
