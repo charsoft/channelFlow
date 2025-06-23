@@ -70,40 +70,42 @@
   }
 
   async function renderGsiButton() {
-    await tick(); // Wait for the DOM to update
+    // Wait for the DOM to update to ensure the container exists.
+    await tick(); 
     const buttonContainer = document.getElementById('gsi-button-container');
-    if (buttonContainer) {
-        if (buttonContainer.childElementCount === 0) {
-            google.accounts.id.renderButton(
-                buttonContainer,
-                { theme: "outline", size: "large" } 
-            );
-        }
-    }
-  }
-  
-  // Reactive statement to re-initialize GSI or re-render the button if the user logs out.
-  $: if (!$user && clientId && typeof window !== 'undefined') {
-    if (window.google?.accounts?.id) {
-        renderGsiButton();
-    } else {
-        initializeGsi();
+
+    // If the container is present and empty, render the button.
+    if (buttonContainer && buttonContainer.childElementCount === 0) {
+      google.accounts.id.renderButton(
+        buttonContainer,
+        { theme: "outline", size: "large", type: "standard" } 
+      );
     }
   }
 
+  onMount(() => {
+    // Initialize GSI when the component first mounts, if not logged in.
+    if (!$user) {
+      initializeGsi();
+    }
+  });
+  
   function handleLogout() {
     clearAccessToken();
-    // user store is cleared via the subscription
+    user.set(null); // Explicitly clear the user store
     Swal.fire('Logged Out', 'You have been signed out.', 'info');
     push('/');
+    // After logout, re-initialize GSI to show the login button again
+    initializeGsi();
   }
 </script>
 
 <div class="auth-wrapper">
   {#if $user}
-    <span class="user-name">Welcome, {$user.name}</span>
+    <span class="user-name">Welcome, {$user.name || $user.email}</span>
     <button on:click={handleLogout} class="button-secondary">Logout</button>
   {:else}
+    <!-- This div is where the Google Sign-In button will be rendered -->
     <div id="gsi-button-container"></div>
   {/if}
 </div>

@@ -172,16 +172,26 @@ export async function getUserInfo() {
     return await response.json();
 }
 
-export async function generateNewPrompts(videoId: string): Promise<string[]> {
+export async function generateNewPrompts(videoId: string, context: string): Promise<string[]> {
     const res = await fetch(`/api/video/${videoId}/generate-prompts`, {
         method: 'POST',
         headers: await getHeaders(),
-        body: JSON.stringify({}) // Backend doesn't require a body, just the videoId from the URL
+        body: JSON.stringify({ context: context })
     });
 
     if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: 'Failed to generate prompts' }));
-        throw new Error(err.detail);
+        try {
+            const err = await res.json();
+            let detail = err.detail;
+            if (typeof detail === 'object' && detail !== null) {
+                // If detail is an object, stringify it to make it readable.
+                detail = JSON.stringify(detail);
+            }
+            throw new Error(detail || 'Failed to generate prompts');
+        } catch (jsonError) {
+            // This catches errors if res.json() fails (e.g., empty response)
+            throw new Error(`Failed to generate prompts. Status: ${res.status}`);
+        }
     }
     const data = await res.json();
     return data.prompts || [];

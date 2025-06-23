@@ -24,26 +24,17 @@ class VisualsAgent:
         self.bucket_name = bucket_name
         event_bus.subscribe(CopyReady, self.handle_copy_ready)
 
-    async def _generate_and_upload_image(self, prompt: str, video_id: str, index: int, diversity_options: dict = None) -> str:
+    async def _generate_and_upload_image(self, prompt: str, video_id: str, index: int, model_name: str = None) -> str:
         """Generates a single image, uploads it, and returns the public URL."""
         
-        # Modify prompt based on diversity options
-        if diversity_options:
-            modifiers = []
-            if diversity_options.get("gender"):
-                modifiers.append("diverse genders")
-            if diversity_options.get("ethnicity"):
-                modifiers.append("diverse ethnicities and skin tones")
-            if diversity_options.get("ability"):
-                modifiers.append("people with varying physical abilities")
-            
-            if modifiers:
-                diversity_string = " The image should include " + ", and ".join(modifiers) + "."
-                prompt += diversity_string
+        image_model = self.image_model
+        if model_name:
+            print(f"   - Using on-demand model: {model_name}")
+            image_model = ImageGenerationModel.from_pretrained(model_name)
 
         print(f"     - Generating image {index}: {prompt[:80]}...")
         response = await asyncio.to_thread(
-            self.image_model.generate_images,
+            image_model.generate_images,
             prompt=prompt,
             number_of_images=1
         )
@@ -65,13 +56,13 @@ class VisualsAgent:
         print(f"       Uploaded to {gcs_uri}")
         return gcs_uri
 
-    async def generate_single_image_from_prompt(self, video_id: str, prompt: str) -> dict:
+    async def generate_single_image_from_prompt(self, video_id: str, prompt: str, model_name: str = None) -> dict:
         """
         Generates a single image and returns a dict with the prompt and URL.
         This is used for on-demand generation from the frontend.
         """
         index = f"ondemand_{uuid.uuid4()}"
-        image_gcs_uri = await self._generate_and_upload_image(prompt, video_id, index)
+        image_gcs_uri = await self._generate_and_upload_image(prompt, video_id, index, model_name=model_name)
         if image_gcs_uri:
             return {"prompt": prompt, "gcs_uri": image_gcs_uri}
         return None

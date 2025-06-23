@@ -33,7 +33,7 @@
   let availableImages: string[] = [];
   let isImageSelectorVisible = false;
   let selectedNewsletterImage = '';
-  let isWorkflowVisible = true; // New state for collapsibility
+  let isWorkflowVisible = false; // New state for collapsibility
   let isImageModalVisible = false;
 
   const stagesMetadata = [
@@ -215,12 +215,7 @@
 {:else if errorMessage}
   <p class="error-message">{errorMessage}</p>
 {:else if videoData}
-  <div class="video-header">
-    <div class="header-content">
-      <h1 id="video-title-placeholder">{videoData.video_title || 'Untitled Video'}</h1>
-      <span class="status-badge-lg-{getStatusClass(videoData.status)}">{videoData.status_message}</span>
-    </div>
-  </div>
+  
 
   <div class="container">
     <div class="video-header">
@@ -268,10 +263,9 @@
         <Tab id="images" title="Generated Images">
           <GeneratedImages
             videoId={params.id}
-            videoTitle={videoData.video_title || 'Untitled Video'}
+            videoSummary={videoData.structured_data?.summary || ''}
             generatedThumbnails={videoData.structured_data?.generated_thumbnails || []}
             onDemandThumbnails={videoData.structured_data?.on_demand_thumbnails || []}
-            facebookPost={videoData.marketing_copy?.facebook_post || ''}
             on:newOnDemandImage={handleNewOnDemandImage}
             on:showImageModal={showImageModal}
           />
@@ -886,5 +880,36 @@ select {
 .toggle-button:hover {
     background-color: #f3f4f6;
 }
+
+.rotated {
+    transform: rotate(180deg);
+  }
+  .workflow-toggle-container {
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  .workflow-toggle-button {
+    background-color: #f3f4f6;
+    color: #4b5563;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    border: 1px solid #e5e7eb;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background-color 0.2s;
+  }
+  .workflow-toggle-button:hover {
+    background-color: #e5e7eb;
+  }
+    .workflow-toggle-button svg {
+        transition: transform 0.2s;
+        width: 1.25rem;
+        height: 1.25rem;
+    }
 </style>
 

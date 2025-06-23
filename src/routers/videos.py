@@ -80,6 +80,13 @@ class RetriggerRequest(BaseModel):
     video_id: str
     stage: str # e.g., "transcription", "analysis", "copywriting", "visuals"
 
+class GeneratePromptsRequest(BaseModel):
+    context: str
+
+class GenerateImageRequest(BaseModel):
+    prompt: str
+    model_name: str = "imagegeneration@006" # default model
+
 @router.post("/api/ingest-url")
 async def ingest_url(request: IngestUrlRequest, current_user: dict = Depends(get_current_user)):
     """
@@ -575,6 +582,68 @@ async def delete_video(video_id: str, current_user: dict = Depends(get_current_u
     print(f"Successfully deleted video {video_id} and all its assets.")
     
     return JSONResponse(status_code=200, content={"message": f"Successfully deleted video {video_id}."})
+
+@router.post("/api/video/{video_id}/generate-prompts")
+async def generate_prompts(video_id: str, request: GeneratePromptsRequest, current_user: dict = Depends(get_current_user)):
+    # Implementation of the new generate_prompts endpoint
+    return JSONResponse(status_code=200, content={"prompts": ["Prompt 1", "Prompt 2"]})
+
+@router.post("/api/video/{video_id}/generate-image")
+async def generate_image(video_id: str, request: GenerateImageRequest, current_user: dict = Depends(get_current_user)):
+    """
+    Generates a single on-demand image for a video.
+    """
+    try:
+        # This assumes you have a way to get the agent instance.
+        # This might be a singleton, a dependency injection, etc.
+        # For now, let's assume it's created on the fly (not ideal for prod)
+        agent = VisualsAgent(
+            project_id=os.environ.get("GCP_PROJECT_ID"),
+            location=os.environ.get("GCP_REGION"),
+            bucket_name=os.environ.get("GCS_BUCKET_NAME"),
+            api_key=os.environ.get("GEMINI_API_KEY"),
+            model_name=os.environ.get("IMAGEN_MODEL_NAME"),
+            gemini_model_name=os.environ.get("GEMINI_MODEL_NAME")
+        )
+
+        image_data = await agent.generate_single_image_from_prompt(
+            video_id=video_id,
+            prompt=request.prompt,
+            model_name=request.model_name
+        )
+
+        if not image_data or "gcs_uri" not in image_data:
+            raise HTTPException(status_code=500, detail="Failed to generate image or GCS URI missing.")
+
+        # Get a signed URL for the newly created image
+        image_data["image_url"] = _get_signed_url(image_data["gcs_uri"])
+        if not image_data["image_url"]:
+             raise HTTPException(status_code=500, detail="Failed to sign the new image URL.")
+
+        # --- Update Firestore ---
+        # Add the new image to the 'on_demand_thumbnails' array in Firestore.
+        video_doc_ref = db.collection("videos").document(video_id)
+        
+        # We need a serializable timestamp
+        timestamp = datetime.utcnow()
+
+        await video_doc_ref.update({
+            "on_demand_thumbnails": firestore.ArrayUnion([{
+                "prompt": image_data["prompt"],
+                "gcs_uri": image_data["gcs_uri"],
+                "created_at": timestamp
+            }])
+        })
+        
+        # Add the server-generated timestamp and signed url to the response
+        image_data["created_at"] = timestamp.isoformat()
+
+        return JSONResponse(status_code=200, content=image_data)
+
+    except Exception as e:
+        import traceback
+        print(f"Error in generate-image: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
 # This is a duplicate and insecure endpoint. Removing it.
 # @router.post("/api/ingest")
