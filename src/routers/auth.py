@@ -171,6 +171,12 @@ async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(g
             raise ValueError("Google Client ID or Secret is not configured on the server.")
 
         # Step 1: Set up OAuth flow and exchange code for credentials
+        print("\n🔍 [DEBUG] Starting OAuth code exchange")
+        print(f"🔑 Received code: {request.code[:10]}...")  # Only show a snippet for safety
+        print(f"🔁 Using redirect_uri: {flow.redirect_uri}")
+        print(f"📎 Client ID: {client_id}")
+        print(f"🔒 Client Secret: {'SET' if client_secret else 'MISSING'}")
+
         flow = Flow.from_client_config(
             client_config={
                 "web": {
@@ -188,7 +194,14 @@ async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(g
             ],
             redirect_uri='postmessage'
         )
-        flow.fetch_token(code=request.code)
+        try:
+            flow.fetch_token(code=request.code)
+            print("✅ Token exchange successful")
+        except Exception as e:
+            print("❌ Token exchange FAILED")
+            import traceback
+            traceback.print_exc()
+            raise
         creds = flow.credentials
 
         # Step 2: Extract and verify the ID token
