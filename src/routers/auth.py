@@ -163,13 +163,14 @@ async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(g
     Requires our internal JWT authentication.
     """
     user_id = current_user.get("uid")
-    
+
     try:
         client_id = os.getenv("GOOGLE_CLIENT_ID")
         client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
         if not client_id or not client_secret:
             raise ValueError("Google Client ID or Secret is not configured on the server.")
 
+        # Step 1: Set up OAuth flow and exchange code for credentials
         flow = Flow.from_client_config(
             client_config={
                 "web": {
@@ -187,31 +188,27 @@ async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(g
             ],
             redirect_uri='postmessage'
         )
-
-        # Exchange the authorization code for credentials
         flow.fetch_token(code=request.code)
         creds = flow.credentials
 
-        # Get user info from the new credentials to ensure we're using the correct user ID
-       
-       # Exchange the authorization code for credentials
-        flow.fetch_token(code=request.code)
-        creds = flow.credentials
-
-        # ✅ Extract the id_token from credentials
+        # Step 2: Extract and verify the ID token
         raw_id_token = creds.id_token
         if not raw_id_token:
             raise HTTPException(status_code=400, detail="Missing id_token from credentials")
 
-        # ✅ Decode to get YouTube account email
-        idinfo = id_token.verify_oauth2_token(
-            raw_id_token,
-            google_requests.Request(),
-            client_id
-        )
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                raw_id_token,
+                google_requests.Request(),
+                client_id,
+                clock_skew_in_seconds=300
+            )
+        except Exception as e:
+          print(f"[❌ VERIFY FAIL] Token: {raw_id_token[:30]}... Error: {e}")
+          raise HTTPException(status_code=400, detail=f"Could not verify ID token: {e}")
         youtube_user_id = idinfo['sub']
 
-        # Ensure a user record exists for this Google Account (YouTube identity)
+        # Step 3: Ensure a user doc exists for the YouTube account owner
         user_doc_ref = db.collection('users').document(youtube_user_id)
         user_doc = await user_doc_ref.get()
         if not user_doc.exists:
@@ -221,40 +218,22 @@ async def exchange_code(request: AuthCodeRequest, current_user: dict = Depends(g
                 'created_at': datetime.utcnow()
             })
 
-            print(f"[🔐 BACKEND] Received code for user: {current_user.get('uid')}")
-            print("[🧠 BACKEND] Saving YouTube credentials to Firestore...")
+        print(f"[🔐 BACKEND] Received code for user: {user_id}")
+        print("[🧠 BACKEND] Saving YouTube credentials to Firestore...")
 
-            # ✅ Encrypt and store both full creds and id_token under LOGGED-IN user's record
-            creds_json = creds.to_json()
-            encrypted_creds = encrypt_data(creds_json.encode())
-            encrypted_id_token = encrypt_data(raw_id_token.encode())
-
-            cred_doc_ref = db.collection("user_credentials").document(current_user["uid"])
-            await cred_doc_ref.set({
-                "credentials": encrypted_creds,
-                "id_token": encrypted_id_token,
-                "youtube_user_id": youtube_user_id
-            })
-
-            print("[✅ BACKEND] YouTube credentials saved.")
-            return {"message": "Successfully connected YouTube account."}
-
-
-
-        # Now, link the YouTube credentials to the currently LOGGED-IN user's account
-        logged_in_user_id = current_user.get("uid")
-
-        # Convert credentials to a dict and encrypt them
+        # Step 4: Encrypt and store credentials under the LOGGED-IN user's record
         creds_json = creds.to_json()
         encrypted_creds = encrypt_data(creds_json.encode())
+        encrypted_id_token = encrypt_data(raw_id_token.encode())
 
-        # Save encrypted credentials to Firestore under the LOGGED-IN user's ID
-        cred_doc_ref = db.collection("user_credentials").document(logged_in_user_id)
+        cred_doc_ref = db.collection("user_credentials").document(user_id)
         await cred_doc_ref.set({
             "credentials": encrypted_creds,
-            "youtube_user_id": youtube_user_id # Store a reference to the actual credential owner
+            "id_token": encrypted_id_token,
+            "youtube_user_id": youtube_user_id
         })
 
+        print("[✅ BACKEND] YouTube credentials saved.")
         return {"message": "Successfully connected YouTube account."}
 
     except Exception as e:
