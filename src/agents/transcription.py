@@ -106,19 +106,14 @@ class TranscriptionAgent:
         if not await asyncio.to_thread(blob.exists):
             raise FileNotFoundError(f"File not found in GCS at {gcs_uri}")
 
-        video_url = blob.generate_signed_url(
-            expiration=timedelta(minutes=15),
-            method="GET",
-            version="v4"
-        )
-        response = requests.get(video_url, stream=True)
-        response.raise_for_status()
-        video_data = b''.join(response.iter_content(chunk_size=8192))
+        print("   Downloading video data from GCS...")
+        video_data = await asyncio.to_thread(blob.download_as_bytes)
         mime_type = blob.content_type or "video/mp4"
 
         video_part = Part.from_bytes(data=video_data, mime_type=mime_type)
         prompt = "Please transcribe this video's audio."
 
+        print("   Sending video to Gemini for transcription...")
         model_response = await asyncio.to_thread(
             self.client.models.generate_content,
             model=self.model_name,
