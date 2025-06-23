@@ -15,9 +15,9 @@ class VisualsAgent:
     Purpose: To create compelling visuals that complement the message using Imagen 2.
     """
 
-    def __init__(self, project_id: str, location: str, bucket_name: str, api_key: str, model_name: str, gemini_model_name: str):
+    def __init__(self, location: str, bucket_name: str, api_key: str, model_name: str, gemini_model_name: str):
         genai.configure(api_key=api_key)
-        vertexai.init(project=project_id, location=location)
+        vertexai.init(location=location)
         self.model = genai.GenerativeModel(model_name=gemini_model_name)
         self.image_model = ImageGenerationModel.from_pretrained(model_name)
         self.storage_client = storage.Client()

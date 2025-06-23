@@ -135,7 +135,6 @@ async def startup_event():
     CopywriterAgent(api_key=gemini_api_key, bucket_name=gcs_bucket_name, model_name=gemini_model_name)
     
     app.state.visuals_agent = VisualsAgent(
-        project_id=gcp_project_id,
         location=gcp_region,
         bucket_name=gcs_bucket_name,
         api_key=gemini_api_key,
