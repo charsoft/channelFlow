@@ -11,7 +11,7 @@ class NewVideoDetected(Event):
     """Fired when a new video is found."""
     video_id: str
     video_url: str
-    video_title: str
+    video_title: str  
     user_id: Optional[str] = None
 
 @dataclass
