@@ -28,6 +28,11 @@ class TranscriptionAgent:
     def __init__(self, api_key: str, bucket_name: str, model_name: str, ffmpeg_path: str = None):
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         self.model_name = model_name
+        creds = None
+        creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if creds_path and os.path.exists(creds_path):
+            creds = service_account.Credentials.from_service_account_file(creds_path)
+            print("✍️ TranscriptionAgent: Authenticating with service account credentials.")
         self.storage_client = storage.Client()
         self.bucket_name = bucket_name
         self.bucket = self.storage_client.bucket(bucket_name)
