@@ -52,7 +52,7 @@ def get_visuals_agent():
         raise HTTPException(status_code=500, detail="Missing critical environment variables for VisualsAgent.")
 
     visuals_agent = VisualsAgent(
-       
+        project_id=gcp_project_id, 
         location=gcp_region, 
         bucket_name=gcs_bucket_name, 
         api_key=gemini_api_key, 
