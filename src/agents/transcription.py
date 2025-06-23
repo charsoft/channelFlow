@@ -31,17 +31,20 @@ class TranscriptionAgent:
 
         creds = None
         creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
         if creds_path and os.path.exists(creds_path):
             creds = service_account.Credentials.from_service_account_file(creds_path)
-            print("✍️ TranscriptionAgent: Authenticating with service account credentials.")
+            print("✍️ TranscriptionAgent: Using local service account file for authentication.")
+        else:
+            creds, project_id = default()
+            print("✅ TranscriptionAgent: Using default credentials from Cloud Run Workload Identity.")
+            self.storage_client = storage.Client(credentials=creds, project=project_id)
 
-        self.storage_client = storage.Client(credentials=creds)
+
+
         self.bucket_name = bucket_name
         self.bucket = self.storage_client.bucket(bucket_name)
         self.ffmpeg_path = ffmpeg_path
-        # Listen for both the original event and our new manual upload event
-        event_bus.subscribe(NewVideoDetected, self.handle_new_video)
-        event_bus.subscribe(IngestedVideo, self.handle_video_ingested)
 
     async def update_video_status(self, video_id: str, status: str, data: dict = None):
         doc_ref = db.collection("videos").document(video_id)
