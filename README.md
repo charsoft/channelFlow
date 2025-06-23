@@ -1,6 +1,14 @@
 # channelFlow
 Hackathon entry!
 
+# How Google Authentication works:
+🔁 Summary of What We’re Doing
+Concept						Scope						Status
+Google Sign-In					via accessToken	Triggers 			watchAccessToken() → good ✅
+YouTube OAuth					tracked via youtubeConnectionStatus		Moved to store → now reactive globally ✅
+Logic separation between user and YouTube acct	✅ Preserved					No conflation happening ✅
+
+
 Running it Locally:
 You still have to set up the OAuth 2.0 client in your GCP project, since this app requires users to authentication with Google Cloud.
 
