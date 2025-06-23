@@ -36,7 +36,7 @@ class TranscriptionAgent:
             creds = service_account.Credentials.from_service_account_file(creds_path)
             print("✍️ TranscriptionAgent: Using local service account file for authentication.")
         else:
-            creds, project_id = os.getenv("GCP_PROJECT_ID")
+            creds, project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
             print("✅ TranscriptionAgent: Using default credentials from Cloud Run Workload Identity.")
             self.storage_client = storage.Client(credentials=creds, project=project_id)
 
