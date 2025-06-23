@@ -52,7 +52,7 @@
     try {
       await loadGsiScript();
       
-      google.accounts.id.initialize({
+      google.accounts.id.initialize({  
         client_id: clientId,
         callback: async (resp: { credential: any }) => {
           if (!resp.credential) {
