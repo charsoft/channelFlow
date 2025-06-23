@@ -1,8 +1,7 @@
 // src/lib/api.ts
 import { get } from 'svelte/store';
 import { accessToken } from './auth';
-import { videoStatus, statusHistory, resetStores } from './stores';
-import { youtubeConnectionStatus } from './stores';
+import { videoStatus, statusHistory, resetStores, youtubeConnectionStatus } from './stores';
 
 async function getHeaders() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
@@ -112,9 +111,14 @@ export async function checkYouTubeConnection(): Promise<{ isConnected: boolean; 
         const errorData = await response.json().catch(() => ({ detail: 'Request failed' }));
         throw new Error(errorData.detail);
     }
-    return await response.json();
-}
 
+    const data = await response.json();
+
+    // ✅ Update the store
+    youtubeConnectionStatus.set(data);
+
+    return data;
+}
 
 
 export async function refreshConnection() {

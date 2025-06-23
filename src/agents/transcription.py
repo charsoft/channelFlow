@@ -36,14 +36,14 @@ class TranscriptionAgent:
             creds = service_account.Credentials.from_service_account_file(creds_path)
             print("✍️ TranscriptionAgent: Using local service account file for authentication.")
         else:
-            creds, project_id = default()
+            creds, project_id = os.getenv("GCP_PROJECT_ID")
             print("✅ TranscriptionAgent: Using default credentials from Cloud Run Workload Identity.")
             self.storage_client = storage.Client(credentials=creds, project=project_id)
 
 
 
         self.bucket_name = bucket_name
-        self.bucket = self.storage_client.bucket(bucket_name)
+        self.bucket = os.getenv("GCS_BUCKET_NAME")
         self.ffmpeg_path = ffmpeg_path
 
     async def update_video_status(self, video_id: str, status: str, data: dict = None):
