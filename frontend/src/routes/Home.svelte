@@ -28,12 +28,14 @@
 
   // 2) Helper to (re)validate connection state
   async function refreshConnection() {
-    try {
-      youtubeConnectionStatus = await checkYouTubeConnection();
-    } catch {
-      youtubeConnectionStatus = { isConnected: false };
-    }
+  try {
+    const status = await checkYouTubeConnection();
+    youtubeConnectionStatus.set(status);
+  } catch {
+    youtubeConnectionStatus.set({ isConnected: false });
   }
+}
+
 
   // 3) Fired when your ConnectYouTubeButton emits `on:connected`
   function onYouTubeConnected() {
@@ -42,15 +44,16 @@
   }
 
   // 4) Your existing disconnect flow
-  async function handleDisconnect() {
-    try {
-      await disconnectYouTube();
-      youtubeConnectionStatus = { isConnected: false };
-      Swal.fire('Success', 'Your YouTube account has been disconnected.', 'success');
-    } catch (err: any) {
-      Swal.fire('Error', err.message, 'error');
-    }
+ async function handleDisconnect() {
+  try {
+    await disconnectYouTube();
+    youtubeConnectionStatus.set({ isConnected: false, email: undefined });
+    Swal.fire('Success', 'Your YouTube account has been disconnected.', 'success');
+  } catch (err: any) {
+    Swal.fire('Error', err.message, 'error');
   }
+}
+
 
   $: if ($videoStatus?.video_id) {
     currentVideoId = $videoStatus.video_id;

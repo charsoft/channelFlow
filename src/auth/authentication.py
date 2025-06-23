@@ -9,6 +9,8 @@ from passlib.context import CryptContext
 # It is completely separate from the ENCRYPTION_KEY used for data encryption.
 # You should generate this with `openssl rand -hex 32` and set it as an environment variable.
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "a-silly-default-secret-key-for-dev")
+print("JWT_SECRET_KEY from env:", os.getenv("JWT_SECRET_KEY"))
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # One week
 

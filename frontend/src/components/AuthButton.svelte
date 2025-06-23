@@ -11,20 +11,27 @@
 
   // This whole subscription is for keeping the 'user' store in sync.
   accessToken.subscribe(async (token) => {
-    if (token) {
-      if (!$user) { // Only fetch if we don't have user info
-        try {
-          const userInfo = await getUserInfo();
-          user.set(userInfo);
-        } catch (error) {
-          console.error('Failed to fetch user info:', error);
-          clearAccessToken(); 
-        }
+  console.log('[Watcher 🔁] token changed:', token);
+  if (token) {
+    if (!$user) {
+      console.log('[Watcher 🤔] No user info, fetching...');
+      try {
+        const userInfo = await getUserInfo();
+        console.log('[Watcher ✅] Got user info:', userInfo);
+        user.set(userInfo);
+      } catch (error) {
+        console.error('[Watcher ❌] Failed to fetch user info:', error);
+        clearAccessToken();
       }
     } else {
-      user.set(null);
+      console.log('[Watcher 🧍] User info already present:', $user);
     }
-  });
+  } else {
+    console.log('[Watcher ⚠️] Token was cleared');
+    user.set(null);
+  }
+});
+
 
   function loadGsiScript(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -55,6 +62,9 @@
           try {
             const jwt = await loginWithGoogle(resp.credential);
             setAccessToken(jwt);
+            console.log('[AuthButton ✅] Set token:', jwt);
+            console.log('[AuthButton ✅] LocalStorage:', localStorage.getItem('accessToken'));
+
             Swal.fire('Success', 'Signed in!', 'success');
           } catch (e: any) {
             Swal.fire('Login failed', e.message, 'error');

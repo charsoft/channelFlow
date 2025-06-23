@@ -83,7 +83,7 @@ Save the file as service-account-key.json in your project folder
    	- Name it (internally)
     	- add authorized Javascript Origins
      		- http://localhost:5173  -- for the local frontend 
-       		- http://localhost:8000  -- for the local backend
+       		- http://localhost:8080  -- for the local backend
          - click create (we will come back here and add the official frontends when we deploy to cloud run)
          - In "Audience", click "make external" but keep the state of TESTING selected. I needed this because my YouTube account is under another domain.
   - Copy the Google_Client_Id, paste it in the .env.local and the .env files on the project root
