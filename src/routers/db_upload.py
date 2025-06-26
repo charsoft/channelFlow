@@ -34,7 +34,7 @@ async def process_manual_upload(youtube_url: str, file_contents: bytes, content_
     video_doc_ref = db.collection("videos").document(video_id)
     doc = await video_doc_ref.get()
     video_title = ""
-
+  
     if not doc.exists:
         try:
             cred_doc_ref = db.collection("user_credentials").document(user_id)
