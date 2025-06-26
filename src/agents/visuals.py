@@ -19,7 +19,7 @@ class VisualsAgent:
         #✅ Use * to enforce keyword arguments — this makes it harder to mix up params when initializing.
         genai.configure(api_key=api_key)
         vertexai.init(project=bucket.client.project, location=bucket.location)
-        
+           
         self.model = genai.GenerativeModel(model_name=gemini_model_name)
         self.image_model = ImageGenerationModel.from_pretrained(imagen_model_name)
 
