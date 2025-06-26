@@ -19,6 +19,7 @@ from ..database import db
 from ..event_bus import event_bus
 from ..events import NewVideoDetected, IngestedVideo, TranscriptReady
 from ..security import decrypt_data, encrypt_data
+from google.auth import default  # 👈 bring this in
 
 class TranscriptionAgent:
     """
@@ -26,25 +27,17 @@ class TranscriptionAgent:
     Purpose: To convert spoken video content into written text.
     """
     def __init__(self, api_key: str, bucket_name: str, model_name: str, ffmpeg_path: str = None):
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        self.client = genai.Client(api_key=api_key)  # 🔐 no longer reads from os.getenv
         self.model_name = model_name
-
-        creds = None
-        creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-
-        if creds_path and os.path.exists(creds_path):
-            creds = service_account.Credentials.from_service_account_file(creds_path)
-            print("✍️ TranscriptionAgent: Using local service account file for authentication.")
-        else:
-            creds, project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-            print("✅ TranscriptionAgent: Using default credentials from Cloud Run Workload Identity.")
-            self.storage_client = storage.Client(credentials=creds, project=project_id)
-
-
-
         self.bucket_name = bucket_name
-        self.bucket = os.getenv("GCS_BUCKET_NAME")
         self.ffmpeg_path = ffmpeg_path
+
+        # ✅ Use ADC (Application Default Credentials) only
+        creds, project_id = default()
+        self.storage_client = storage.Client(credentials=creds, project=project_id)
+        self.bucket = self.storage_client.bucket(bucket_name)
+        print("✅ TranscriptionAgent: Using Application Default Credentials.")
+
 
     async def update_video_status(self, video_id: str, status: str, data: dict = None):
         doc_ref = db.collection("videos").document(video_id)

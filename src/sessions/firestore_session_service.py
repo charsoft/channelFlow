@@ -9,11 +9,11 @@ from ..event_bus import event_bus
 class FirestoreSessionService(BaseSessionService):
     """
     A session service that stores session data in Google Cloud Firestore.
-    Uses GOOGLE_APPLICATION_CREDENTIALS if set.
+ 
     """
 
     def __init__(self, db: firestore.AsyncClient = None):
-        self.db = db or firestore.AsyncClient()  # Automatically uses GOOGLE_APPLICATION_CREDENTIALS if set
+        self.db = db or firestore.AsyncClient()  
 
     def _get_collection(self, app_name: str, user_id: str) -> firestore.AsyncCollectionReference:
         return self.db.collection("users").document(user_id).collection(app_name)
