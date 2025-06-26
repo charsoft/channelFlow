@@ -12,7 +12,7 @@ steps:
       - |
         echo "${_RUN_CONFIG}" > /workspace/app-prod.yaml
     id: Run yaml config
-    entrypoint: bash
+    entrypoint: bash  
   - name: gcr.io/cloud-builders/gcloud
     args:
       - '-c'
