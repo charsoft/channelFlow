@@ -15,13 +15,16 @@ class VisualsAgent:
     Purpose: To create compelling visuals that complement the message using Imagen 2.
     """
 
-    def __init__(self, project_id: str, location: str, bucket_name: str, api_key: str, model_name: str, gemini_model_name: str):
+    def __init__(self, *, bucket, api_key: str, imagen_model_name: str, gemini_model_name: str):
+        #✅ Use * to enforce keyword arguments — this makes it harder to mix up params when initializing.
         genai.configure(api_key=api_key)
-        vertexai.init(project=project_id, location=location)
+        vertexai.init(project=bucket.client.project, location=bucket.location)
+        
         self.model = genai.GenerativeModel(model_name=gemini_model_name)
-        self.image_model = ImageGenerationModel.from_pretrained(model_name)
-        self.storage_client = storage.Client()
-        self.bucket_name = bucket_name
+        self.image_model = ImageGenerationModel.from_pretrained(imagen_model_name)
+
+        self.bucket = bucket  # already initialized in startup_event()
+        self.storage_client = bucket.client  # optional
         event_bus.subscribe(CopyReady, self.handle_copy_ready)
 
     async def _generate_and_upload_image(self, prompt: str, video_id: str, index: int, diversity_options: dict = None) -> str:

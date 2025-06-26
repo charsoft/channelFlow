@@ -161,6 +161,7 @@ class TranscriptionAgent:
 
         print(f"   Video not in cache. Downloading from YouTube: {event.video_url}")
         
+        
         # Add a status update specifically for downloading from YouTube
         await self.update_video_status(
             event.video_id,
