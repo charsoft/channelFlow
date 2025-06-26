@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
 from google.cloud import storage, firestore
-from google.oauth2.credentials import Credentials
+from google.oauth2.credentials import Credentials  
 from googleapiclient.discovery import build
 
 from ..database import db
