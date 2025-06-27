@@ -8,9 +8,9 @@ from ..events import CopyReady, VisualsReady
 from ..database import db
 from google.cloud import storage
 import uuid
-
+# have I done it?
 class VisualsAgent:
-    
+
     """    
     🎨 VisualsAgent
     Purpose: To create compelling visuals that complement the message using Imagen 2.
