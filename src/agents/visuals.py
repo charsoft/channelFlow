@@ -25,7 +25,7 @@ class VisualsAgent:
 
         self.bucket = bucket  # already initialized in startup_event()
         self.storage_client = bucket.client  # optional
-        event_bus.subscribe(CopyReady, self.handle_copy_ready)
+        event_bus.subscribe(CopyReady, self.handle_copy_ready)   
 
     async def _generate_and_upload_image(self, prompt: str, video_id: str, index: int, diversity_options: dict = None) -> str:
         """Generates a single image, uploads it, and returns the public URL."""
