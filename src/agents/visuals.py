@@ -29,7 +29,7 @@ class VisualsAgent:
 
     async def _generate_and_upload_image(self, prompt: str, video_id: str, index: int, diversity_options: dict = None) -> str:
         """Generates a single image, uploads it, and returns the public URL."""
-        
+        #making a change...
         # Modify prompt based on diversity options
         if diversity_options:
             modifiers = []
