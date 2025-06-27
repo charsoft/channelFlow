@@ -6,7 +6,7 @@ from vertexai.preview.vision_models import ImageGenerationModel
 from ..event_bus import event_bus
 from ..events import CopyReady, VisualsReady
 from ..database import db
-from google.cloud import storage
+from google.cloud import storage   
 import uuid
 
 class VisualsAgent:
