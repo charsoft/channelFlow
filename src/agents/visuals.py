@@ -10,6 +10,7 @@ from google.cloud import storage
 import uuid
 
 class VisualsAgent:
+    
     """    
     🎨 VisualsAgent
     Purpose: To create compelling visuals that complement the message using Imagen 2.
