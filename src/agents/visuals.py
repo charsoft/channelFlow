@@ -8,7 +8,7 @@ from ..events import CopyReady, VisualsReady
 from ..database import db
 from google.cloud import storage
 import uuid
-# have I done it?
+
 class VisualsAgent:
 
     """    
